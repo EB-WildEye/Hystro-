@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f6f7f5;
+  --surface: #ffffff;
+  --ink: #1d2422;
+  --muted: #5d6965;
+  --line: #dde3e0;
+  --accent: #1f6f5c;
+  --accent-soft: #e3f0ec;
+  --resident: #2f6db5;
+  --resident-soft: #e6eef8;
+  --specialist: #a3522a;
+  --specialist-soft: #f7ebe4;
+  --warn: #9a6a00;
+  --warn-soft: #fbf3dc;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-resident: var(--resident);
+  --color-resident-soft: var(--resident-soft);
+  --color-specialist: var(--specialist);
+  --color-specialist-soft: var(--specialist-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --font-sans: var(--font-assistant), system-ui, sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.clinical-text {
+  white-space: pre-wrap;
+  line-height: 1.75;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+  body {
+    background: #fff;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-break {
+    break-before: page;
+  }
+  .avoid-break {
+    break-inside: avoid;
+  }
+}
