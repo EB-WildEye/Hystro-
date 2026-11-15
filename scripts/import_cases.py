@@ -12,6 +12,8 @@ Usage:
       --id-col "<header>" --admission-col "<header>" --us-col "<header>"
 
 Without the --*-col flags the first three columns are used, in that order.
+If the sheet marks "no ultrasound" with a placeholder such as 0, pass
+--us-empty 0 so reviewers see "no ultrasound findings" instead of the placeholder.
 Cases whose serial number already exists are skipped, never overwritten, so
 existing ratings always stay attached to the text they were given for.
 """
@@ -49,6 +51,13 @@ def main() -> None:
     ap.add_argument("--id-col")
     ap.add_argument("--admission-col")
     ap.add_argument("--us-col")
+    ap.add_argument(
+        "--us-empty",
+        action="append",
+        default=[],
+        metavar="VALUE",
+        help="Ultrasound cell value that means 'no ultrasound' (e.g. 0). Repeatable.",
+    )
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -80,7 +89,10 @@ def main() -> None:
             problems.append(f"row {excel_row}: duplicate serial {number}")
             continue
         seen.add(number)
-        rows.append({"case_number": number, "admission_text": admission, "ultrasound_text": clean(r[us_col])})
+        ultrasound = clean(r[us_col])
+        if ultrasound in args.us_empty:
+            ultrasound = None  # placeholder for "no ultrasound", not a finding
+        rows.append({"case_number": number, "admission_text": admission, "ultrasound_text": ultrasound})
 
     print(f"\nValid cases: {len(rows)}   with ultrasound: {sum(1 for x in rows if x['ultrasound_text'])}")
     if problems:
