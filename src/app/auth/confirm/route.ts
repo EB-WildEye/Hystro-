@@ -1,5 +1,6 @@
-import { type NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
+import { redirectTo } from "@/lib/redirect";
 import { createClient } from "@/lib/supabase/server";
 
 // Magic-link landing. Supports both link formats Supabase can send:
@@ -22,5 +23,5 @@ export async function GET(request: NextRequest) {
     ok = !(await supabase.auth.exchangeCodeForSession(code)).error;
   }
 
-  return NextResponse.redirect(new URL(ok ? "/" : "/login?error=link", request.url));
+  return redirectTo(ok ? "/" : "/login?error=link");
 }
