@@ -1,0 +1,21 @@
+# Render Blueprint: deploys only the Next.js app. The Python scripts in
+# scripts/ are local admin tools and are never deployed.
+services:
+  - type: web
+    name: hystro
+    runtime: node
+    region: frankfurt
+    plan: free
+    branch: main
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /login
+    autoDeployTrigger: commit
+    envVars:
+      # Public by design: Row Level Security protects every table.
+      # Render asks for these values when the Blueprint is first created.
+      # Never add SUPABASE_SECRET_KEY here.
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        sync: false

@@ -2,7 +2,7 @@
 
 A blinded rating tool. Three physicians read emergency-room admission notes, with ultrasound findings where there are any, and rate who should perform the hysteroscopy: **resident (מתמחה)** or **specialist (מומחה)**. An admin sees all ratings, agreement statistics and disputed cases, and exports a CSV and a PDF report.
 
-**Stack:** Next.js 16 (App Router) on Vercel · Supabase (Postgres, magic-link auth, Row Level Security) · Python scripts for the one-time setup.
+**Stack:** Next.js 16 (App Router) on Render · Supabase (Postgres, magic-link auth, Row Level Security) · Python scripts for the one-time setup.
 
 ## How blinding is enforced
 
@@ -34,7 +34,7 @@ The `.example` files show the variable names. The admission texts must be **de-i
 1. Create a project in an **EU region** (for example Frankfurt).
 2. **SQL Editor** → paste and run `supabase/migrations/0001_init.sql`.
 3. **Authentication → Sign In / Providers**: turn off *Allow new users to sign up*. Keep Email enabled.
-4. **Authentication → URL Configuration**: set *Site URL* to your Vercel URL, and add `http://localhost:3000/**` and `https://<your-app>.vercel.app/**` to *Redirect URLs*.
+4. **Authentication → URL Configuration**: set *Site URL* to your Render URL, and add `http://localhost:3000/**` and `https://<your-app>.onrender.com/**` to *Redirect URLs*.
 5. **Authentication → Emails → Magic Link** template: replace the link with
    ```html
    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">כניסה למערכת</a>
@@ -74,7 +74,9 @@ The import never overwrites an existing case, so ratings always stay attached to
 npm run dev        # http://localhost:3000
 ```
 
-On **Vercel**, import the GitHub repo and set only `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. **Never** put the secret key in Vercel: the app doesn't need it.
+On **Render**, choose **New → Blueprint**, connect this GitHub repo, and Render reads `render.yaml`: one free web service in Frankfurt, auto-deployed on every push to `main`. It asks for `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` once. **Never** put the secret key in Render: the app doesn't need it. Node is pinned to 22 in `.node-version`.
+
+On the free plan the service sleeps after 15 minutes without visitors, and the next visit takes about a minute to wake it. No data is lost, since all data lives in Supabase.
 
 ## Using it
 
