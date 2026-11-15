@@ -1,4 +1,7 @@
-"""Create (or update) the admin and the 3 reviewer accounts from scripts/.env.
+"""Create (or update) the admin and reviewer accounts from scripts/.env.
+
+Reviewer slots left empty in scripts/.env are skipped, so accounts can be
+added one at a time.
 
 Accounts are created pre-confirmed, so each person signs in with a magic link
 sent to their address. Re-running is safe: existing users are reused and their
@@ -6,6 +9,8 @@ profile (name, role, slot) is updated.
 
 Usage:  python scripts/create_users.py
 """
+
+import os
 
 from common import admin_client, env
 
@@ -34,7 +39,13 @@ def main() -> None:
     client = admin_client()
     people = [("admin", None, env("ADMIN_EMAIL"), env("ADMIN_NAME"))]
     for slot in (1, 2, 3):
-        people.append(("reviewer", slot, env(f"REVIEWER_{slot}_EMAIL"), env(f"REVIEWER_{slot}_NAME")))
+        email = os.environ.get(f"REVIEWER_{slot}_EMAIL", "").strip()
+        name = os.environ.get(f"REVIEWER_{slot}_NAME", "").strip()
+        if not email and not name:
+            continue  # slot not assigned yet; re-run once it is
+        if not email or not name:
+            raise SystemExit(f"Reviewer {slot} needs both REVIEWER_{slot}_EMAIL and REVIEWER_{slot}_NAME.")
+        people.append(("reviewer", slot, email, name))
 
     emails = [p[2].lower() for p in people]
     if len(set(emails)) != len(emails):
