@@ -16,7 +16,10 @@ export function LoginForm() {
     // shouldCreateUser: false - only accounts created by the admin script can sign in.
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { shouldCreateUser: false },
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+      },
     });
     // The same message is shown either way, so the form does not reveal
     // which addresses have accounts.
