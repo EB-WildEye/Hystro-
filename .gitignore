@@ -49,3 +49,6 @@ next-env.d.ts
 *.pdf
 __pycache__/
 .venv/
+
+# local Claude Code settings
+.claude/settings.local.json
