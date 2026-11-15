@@ -1,20 +1,22 @@
 // Row Level Security tests: runs the real migration on an in-memory Postgres
 // (PGlite) with minimal Supabase auth stand-ins.  npm run test:db
 import { PGlite } from "@electric-sql/pglite";
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync } from "fs";
 const db = new PGlite();
 const q = (s, p) => db.query(s, p);
 // Minimal Supabase stand-ins: auth schema, auth.uid() from a GUC, roles.
 await db.exec(`
-create role anon nologin; create role authenticated nologin;
+create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
 create schema auth;
 create table auth.users (id uuid primary key, email text);
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 grant usage on schema auth to anon, authenticated;
 grant execute on function auth.uid() to anon, authenticated;
-grant usage on schema public to anon, authenticated;
+grant usage on schema public to anon, authenticated, service_role;
 `);
-await db.exec(readFileSync(new URL("../supabase/migrations/0001_init.sql", import.meta.url), "utf8"));
+for (const file of readdirSync(new URL("../supabase/migrations/", import.meta.url)).sort()) {
+  await db.exec(readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"));
+}
 const A="00000000-0000-0000-0000-00000000000a", R1="00000000-0000-0000-0000-000000000001", R2="00000000-0000-0000-0000-000000000002", R3="00000000-0000-0000-0000-000000000003";
 await db.exec(`
 insert into auth.users values ('${A}','a'),('${R1}','r1'),('${R2}','r2'),('${R3}','r3');
@@ -55,6 +57,12 @@ check("Audit logged the change", (await as(A, ()=>q(`select * from rating_events
 // reviewer_state
 await as(R1, ()=>q(`insert into reviewer_state (reviewer_id, last_sort_order) values ('${R1}', 2) on conflict (reviewer_id) do update set last_sort_order = excluded.last_sort_order`));
 check("R2 cannot see R1 position", (await as(R2, ()=>q(`select * from reviewer_state`))).rows.length === 0);
+// service_role: what the local admin scripts do with the secret key
+await db.exec(`set role service_role;`);
+check("Service role can upsert profiles", !(await err(()=>q(`insert into profiles values ('${R3}','Dr3b','reviewer',3) on conflict (id) do update set display_name = excluded.display_name`))));
+check("Service role can import cases", !(await err(()=>q(`insert into cases (case_number, admission_text, sort_order) values ('104','t',4)`))));
+check("Service role can read cases", (await q(`select * from cases`)).rows.length === 4);
+await db.exec(`reset role;`);
 // anon
 await db.exec(`set role anon;`);
 check("Anon cannot read cases", !!(await err(()=>q(`select * from cases`))));

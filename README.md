@@ -13,7 +13,7 @@ Blinding is enforced in the database, not just hidden in the UI:
 - Signed-out visitors get no access at all. Sign-in uses a magic link, and only for accounts the admin created (`shouldCreateUser: false` plus sign-ups disabled in Supabase).
 - Every rating change is written to an append-only audit table (`rating_events`) that only the admin can read.
 
-`npm run test:db` runs 22 checks against the real migration on an in-memory Postgres (PGlite) to prove the points above.
+`npm run test:db` runs 25 checks against the real migration on an in-memory Postgres (PGlite) to prove the points above.
 
 ## What's kept out of git
 
@@ -32,7 +32,7 @@ The `.example` files show the variable names. The admission texts must be **de-i
 ### 1. Supabase
 
 1. Create a project in an **EU region** (for example Frankfurt).
-2. **SQL Editor** → paste and run `supabase/migrations/0001_init.sql`.
+2. **SQL Editor** → paste and run each file in `supabase/migrations/`, in order.
 3. **Authentication → Sign In / Providers**: turn off *Allow new users to sign up*. Keep Email enabled.
 4. **Authentication → URL Configuration**: set *Site URL* to your Render URL, and add `http://localhost:3000/**` and `https://<your-app>.onrender.com/**` to *Redirect URLs*.
 5. **Authentication → Emails → Magic Link** template: replace the link with
