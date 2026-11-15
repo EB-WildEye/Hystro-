@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #f6f7f5;
+  --bg: #edf0f6;
   --surface: #ffffff;
-  --ink: #1d2422;
-  --muted: #5d6965;
-  --line: #dde3e0;
-  --accent: #1f6f5c;
-  --accent-soft: #e3f0ec;
-  --resident: #2f6db5;
-  --resident-soft: #e6eef8;
-  --specialist: #a3522a;
-  --specialist-soft: #f7ebe4;
+  --ink: #1b2233;
+  --muted: #5a6377;
+  --line: #dfe3ee;
+  --accent: #3d4f8f;
+  --accent-soft: #e6e9f5;
+  --resident: #0c7f73;
+  --resident-soft: #dff3ef;
+  --specialist: #7b3fa0;
+  --specialist-soft: #f1e6f7;
   --warn: #9a6a00;
   --warn-soft: #fbf3dc;
 }
@@ -31,6 +31,7 @@
   --color-warn: var(--warn);
   --color-warn-soft: var(--warn-soft);
   --font-sans: var(--font-assistant), system-ui, sans-serif;
+  --shadow-card: 0 1px 2px rgb(27 34 51 / 0.06), 0 18px 40px -18px rgb(27 34 51 / 0.28);
 }
 
 body {
@@ -41,6 +42,34 @@ body {
 .clinical-text {
   white-space: pre-wrap;
   line-height: 1.75;
+}
+
+.swipe-card-settle {
+  transition:
+    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.22s ease-out;
+}
+
+.choice-btn {
+  border-width: 2px;
+  border-radius: 9999px;
+  padding-block: 0.85rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  transition: background-color 0.15s;
+}
+.choice-btn:disabled {
+  opacity: 0.5;
+}
+.choice-btn:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .swipe-card-settle {
+    transition: none;
+  }
 }
 
 @media print {

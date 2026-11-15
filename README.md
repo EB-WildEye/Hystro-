@@ -81,7 +81,7 @@ On the free plan the service sleeps after 15 minutes without visitors, and the n
 ## Using it
 
 **Reviewer** (`/review`)
-- Each screen shows one admission note and its ultrasound findings. Click **מתמחה** or **מומחה**, or press `1` / `2`. Click **הבא**, or press `←` or `N`, to skip a case for now.
+- Each screen shows one card: an admission note with its ultrasound findings. Swipe the card **right for מתמחה** or **left for מומחה**. The buttons under the card and the right / left arrow keys do the same. Click **הבא** to skip a case for now.
 - Every click saves immediately. Next time you sign in, you resume after the last case you touched, and you only get cases you haven't rated yet. Skipped cases come back around.
 - **הדירוגים שלי** lists your ratings. Open any of them to change it.
 

@@ -5,7 +5,7 @@ type NavItem = { href: string; label: string };
 export function Header({ title, nav, userName }: { title: string; nav: NavItem[]; userName?: string }) {
   return (
     <header className="no-print border-b border-line bg-surface">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:gap-x-6">
         <span className="font-bold">{title}</span>
         <nav className="flex flex-wrap gap-4 text-sm">
           {nav.map((item) => (
@@ -15,7 +15,7 @@ export function Header({ title, nav, userName }: { title: string; nav: NavItem[]
           ))}
         </nav>
         <div className="ms-auto flex items-center gap-3 text-sm">
-          {userName && <span className="text-muted">{userName}</span>}
+          {userName && <span className="hidden text-muted sm:inline">{userName}</span>}
           <form action="/auth/signout" method="post">
             <button type="submit" className="rounded-md border border-line px-3 py-1 hover:bg-bg">
               יציאה

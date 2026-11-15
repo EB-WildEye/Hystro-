@@ -1,11 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Header } from "@/components/header";
-import { CaseText } from "@/components/case-text";
 import { requireReviewer } from "@/lib/dal";
 import { isRating } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
-import { RatingControls } from "./rating-controls";
+import { SwipeDeck } from "./swipe-deck";
 
 const NAV = [
   { href: "/review", label: "דירוג" },
@@ -38,29 +37,37 @@ async function ReviewContent({ searchParams }: { searchParams: PageProps<"/revie
     supabase.from("ratings").select("id", { count: "exact", head: true }).eq("reviewer_id", profile.id),
   ]);
 
+  const done = mine ?? 0;
+  const all = total ?? 0;
   const progress = (
     <div className="flex items-center gap-3 text-sm text-muted">
-      <span>
-        דירגת {mine ?? 0} מתוך {total ?? 0}
-      </span>
-      <div className="h-2 w-40 overflow-hidden rounded-full bg-line">
-        <div
-          className="h-full bg-accent"
-          style={{ width: `${total ? Math.round(((mine ?? 0) / total) * 100) : 0}%` }}
-        />
+      <div
+        role="progressbar"
+        aria-label="התקדמות בדירוג"
+        aria-valuemin={0}
+        aria-valuemax={all}
+        aria-valuenow={done}
+        className="h-1.5 flex-1 overflow-hidden rounded-full bg-line"
+      >
+        <div className="h-full rounded-full bg-accent" style={{ width: `${all ? (done / all) * 100 : 0}%` }} />
       </div>
+      <span className="tabular-nums">
+        {done} מתוך {all}
+      </span>
     </div>
   );
+
+  const header = <Header title="דירוג היסטרוסקופיה" nav={NAV} userName={profile.display_name} />;
 
   if (!caseId) {
     return (
       <>
-        <Header title="דירוג היסטרוסקופיה" nav={NAV} userName={profile.display_name} />
-        <main className="mx-auto w-full max-w-3xl px-4 py-16 text-center">
+        {header}
+        <main className="mx-auto w-full max-w-xl px-4 py-16 text-center">
           {progress}
-          <h1 className="mt-6 text-2xl font-bold">סיימת לדרג את כל הקבלות</h1>
+          <h1 className="mt-8 text-2xl font-bold">סיימת לדרג את כל הקבלות</h1>
           <p className="mt-2 text-muted">תודה! אפשר לעבור על הדירוגים שלך ולשנות אותם.</p>
-          <Link href="/review/mine" className="mt-6 inline-block rounded-lg bg-accent px-5 py-2.5 font-semibold text-white">
+          <Link href="/review/mine" className="mt-6 inline-block rounded-full bg-accent px-6 py-2.5 font-semibold text-white">
             הדירוגים שלי
           </Link>
         </main>
@@ -75,8 +82,8 @@ async function ReviewContent({ searchParams }: { searchParams: PageProps<"/revie
   if (!c) {
     return (
       <>
-        <Header title="דירוג היסטרוסקופיה" nav={NAV} userName={profile.display_name} />
-        <main className="mx-auto max-w-3xl px-4 py-16 text-center">
+        {header}
+        <main className="mx-auto max-w-xl px-4 py-16 text-center">
           <p>הקבלה לא נמצאה.</p>
           <Link href="/review" className="mt-4 inline-block text-accent underline">חזרה לדירוג</Link>
         </main>
@@ -86,27 +93,21 @@ async function ReviewContent({ searchParams }: { searchParams: PageProps<"/revie
   const current = isRating(own?.rating) ? own.rating : null;
 
   return (
-    <>
-      <Header title="דירוג היסטרוסקופיה" nav={NAV} userName={profile.display_name} />
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-5 px-4 py-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-bold">
-            מטופלת מס&apos; <span dir="ltr">{c.case_number}</span>
-          </h1>
-          {progress}
-        </div>
-        {current && (
-          <p className="rounded-lg bg-warn-soft px-4 py-2 text-sm text-warn">
-            כבר דירגת קבלה זו. בחירה חדשה תחליף את הדירוג הקודם.
-          </p>
-        )}
-        <CaseText admission={c.admission_text} ultrasound={c.ultrasound_text} />
-        <div className="sticky bottom-0 -mx-4 border-t border-line bg-bg/95 px-4 py-4 backdrop-blur">
-          <p className="mb-3 font-semibold">מי צריך לבצע את ההיסטרוסקופיה?</p>
-          <RatingControls key={c.id} caseId={c.id} current={current} returnTo={returnTo} />
-        </div>
+    <div className="flex h-dvh min-h-[34rem] flex-col">
+      {header}
+      <main className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-4">
+        <div className="mx-auto w-full max-w-2xl">{progress}</div>
+        <SwipeDeck
+          key={c.id}
+          caseId={c.id}
+          caseNumber={c.case_number}
+          admission={c.admission_text}
+          ultrasound={c.ultrasound_text}
+          current={current}
+          returnTo={returnTo}
+        />
       </main>
-    </>
+    </div>
   );
 }
 
