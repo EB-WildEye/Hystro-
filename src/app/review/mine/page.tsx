@@ -5,6 +5,7 @@ import { RatingBadge } from "@/components/rating-badge";
 import { requireReviewer } from "@/lib/dal";
 import { isRating } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
+import { RemoveRating } from "./remove-rating";
 
 const NAV = [
   { href: "/review", label: "דירוג" },
@@ -33,16 +34,16 @@ async function MyRatings() {
       <Header title="דירוג היסטרוסקופיה" nav={NAV} userName={profile.display_name} />
       <main className="mx-auto w-full max-w-3xl px-4 py-6">
         <h1 className="text-xl font-bold">הדירוגים שלי ({rows.length})</h1>
-        <p className="mt-1 text-sm text-muted">לחיצה על שורה פותחת את הקבלה ומאפשרת לשנות את הדירוג.</p>
+        <p className="mt-1 text-sm text-muted">לחיצה על שורה פותחת את הקבלה ומאפשרת לשנות את הדירוג. הסרה מחזירה את הקבלה לתור הדירוג.</p>
         {rows.length === 0 ? (
           <p className="mt-8 text-muted">עוד לא דירגת קבלות.</p>
         ) : (
           <ul className="mt-4 divide-y divide-line rounded-xl border border-line bg-surface">
             {rows.map((r) => (
-              <li key={r.id}>
+              <li key={r.id} className="flex flex-wrap items-center justify-end">
                 <Link
                   href={`/review?case=${r.id}&from=mine`}
-                  className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-bg"
+                  className="flex flex-1 items-center justify-between gap-4 px-4 py-3 hover:bg-bg"
                 >
                   <span>
                     מטופלת <span dir="ltr">{r.caseNumber}</span>
@@ -54,6 +55,7 @@ async function MyRatings() {
                     <RatingBadge value={r.rating} />
                   </span>
                 </Link>
+                <RemoveRating caseId={r.id} caseNumber={r.caseNumber} />
               </li>
             ))}
           </ul>

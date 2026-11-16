@@ -36,7 +36,7 @@ check("R2 cannot read R1 ratings by filter", (await as(R2, ()=>q(`select * from 
 check("R2 cannot insert rating as R1", !!(await as(R2, ()=>err(()=>q(`insert into ratings (case_id, reviewer_id, rating) values (3,'${R1}','resident')`)))));
 const upd = await as(R2, ()=>q(`update ratings set rating='resident' where reviewer_id='${R1}'`));
 check("R2 cannot update R1 rating", upd.affectedRows === 0);
-check("R2 cannot delete", !!(await as(R2, ()=>err(()=>q(`delete from ratings`)))));
+check("R2 cannot remove R1 rating", (await as(R2, ()=>q(`delete from ratings where reviewer_id='${R1}'`))).affectedRows === 0);
 check("R2 cannot read audit log", (await as(R2, ()=>q(`select * from rating_events`))).rows.length === 0);
 check("R2 cannot read others' profiles", (await as(R2, ()=>q(`select * from profiles`))).rows.length === 1);
 check("R2 cannot promote self to admin", !!(await as(R2, ()=>err(()=>q(`update profiles set role='admin' where id='${R2}'`)))));
@@ -54,6 +54,13 @@ check("Queue R2 after 3 wraps -> case 2", (await as(R2, ()=>q(`select next_unrat
 await as(R1, ()=>q(`insert into ratings (case_id, reviewer_id, rating) values (1,'${R1}','specialist') on conflict (case_id, reviewer_id) do update set rating = excluded.rating`));
 check("Upsert changes own rating", (await as(R1, ()=>q(`select rating from ratings where case_id=1`))).rows[0].rating === "specialist");
 check("Audit logged the change", (await as(A, ()=>q(`select * from rating_events where case_id=1 and reviewer_id='${R1}' order by id`))).rows.map(r=>r.new_rating).join(",") === "resident,specialist");
+// removing a rating
+check("Admin cannot remove ratings", (await as(A, ()=>q(`delete from ratings`))).affectedRows === 0);
+check("R2 removes only own rating", (await as(R2, ()=>q(`delete from ratings`))).affectedRows === 1);
+check("Other ratings survive", (await as(A, ()=>q(`select * from ratings`))).rows.length === 2);
+check("Removed case returns to R2 queue", (await as(R2, ()=>q(`select next_unrated_case(0) as id`))).rows[0].id == 1);
+const removal = (await as(A, ()=>q(`select old_rating, new_rating from rating_events where reviewer_id='${R2}' order by id desc limit 1`))).rows[0];
+check("Audit logged the removal", removal.old_rating === "specialist" && removal.new_rating === null);
 // reviewer_state
 await as(R1, ()=>q(`insert into reviewer_state (reviewer_id, last_sort_order) values ('${R1}', 2) on conflict (reviewer_id) do update set last_sort_order = excluded.last_sort_order`));
 check("R2 cannot see R1 position", (await as(R2, ()=>q(`select * from reviewer_state`))).rows.length === 0);

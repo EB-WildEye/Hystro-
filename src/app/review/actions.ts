@@ -42,3 +42,17 @@ export async function skipCase(formData: FormData) {
   await rememberPosition(parseCaseId(formData), profile.id);
   redirect("/review");
 }
+
+// Removes the reviewer's own rating; the case goes back to their queue.
+// RLS only lets a reviewer delete their own rows, and the removal is logged
+// in rating_events by a database trigger.
+export async function removeRating(formData: FormData) {
+  const profile = await requireReviewer();
+  const caseId = parseCaseId(formData);
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("ratings").delete().eq("case_id", caseId).eq("reviewer_id", profile.id);
+  if (error) throw new Error(error.message);
+
+  redirect("/review/mine");
+}

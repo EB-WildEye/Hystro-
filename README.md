@@ -13,7 +13,7 @@ Blinding is enforced in the database, not just hidden in the UI:
 - Signed-out visitors get no access at all. Sign-in uses a magic link, and only for accounts the admin created (`shouldCreateUser: false` plus sign-ups disabled in Supabase).
 - Every rating change is written to an append-only audit table (`rating_events`) that only the admin can read.
 
-`npm run test:db` runs 25 checks against the real migration on an in-memory Postgres (PGlite) to prove the points above.
+`npm run test:db` runs 30 checks against the real migration on an in-memory Postgres (PGlite) to prove the points above.
 
 ## What's kept out of git
 
@@ -83,7 +83,7 @@ On the free plan the service sleeps after 15 minutes without visitors, and the n
 **Reviewer** (`/review`)
 - Each screen shows one card: an admission note with its ultrasound findings. Swipe the card **right for מתמחה** or **left for מומחה**. The buttons under the card and the right / left arrow keys do the same. Click **הבא** to skip a case for now.
 - Every click saves immediately. Next time you sign in, you resume after the last case you touched, and you only get cases you haven't rated yet. Skipped cases come back around.
-- **הדירוגים שלי** lists your ratings. Open any of them to change it.
+- **הדירוגים שלי** lists your ratings. Open any of them to change it, or click **הסרה** to remove it. A removed case goes back into your queue, and the removal is kept in the audit log.
 
 **Admin** (`/admin`)
 - Dashboard: progress, cases not rated yet, per-reviewer distribution, Fleiss' kappa (all three reviewers), pairwise Cohen's kappa, and majority decisions.
