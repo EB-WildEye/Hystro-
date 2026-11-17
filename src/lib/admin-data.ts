@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/dal";
 import { analyze, summarize, type CaseRow, type RatingRow, type Reviewer } from "@/lib/stats";
+import type { Attribute } from "@/lib/export-sheet";
 
 const PAGE = 1000; // Supabase caps a single response at 1000 rows by default.
 
@@ -49,4 +50,15 @@ export async function loadAdminData() {
 
   const summaries = summarize(cases, reviewers, ratings);
   return { reviewers, summaries, analytics: analyze(summaries, reviewers), generatedAt: new Date() };
+}
+
+// Annotation columns from the source spreadsheet, by case id. Admin-only:
+// reviewers rate without them, and RLS keeps the table from them.
+export async function loadCaseAttributes(): Promise<Map<number, Attribute[]>> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const rows = await fetchAll<{ case_id: number; attributes: Attribute[] }>((from, to) =>
+    supabase.from("case_attributes").select("case_id, attributes").order("case_id").range(from, to),
+  );
+  return new Map(rows.map((r) => [r.case_id, r.attributes]));
 }

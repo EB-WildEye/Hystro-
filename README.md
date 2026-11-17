@@ -1,6 +1,6 @@
 # Hysteroscopy rating
 
-A blinded rating tool. Three physicians read emergency-room admission notes, with ultrasound findings where there are any, and rate who should perform the hysteroscopy: **resident (מתמחה)** or **specialist (מומחה)**. An admin sees all ratings, agreement statistics and disputed cases, and exports a CSV and a PDF report.
+A blinded rating tool. Three physicians read emergency-room admission notes, with ultrasound findings where there are any, and rate who should perform the hysteroscopy: **resident (מתמחה)** or **specialist (מומחה)**. An admin sees all ratings, agreement statistics and disputed cases, and exports an Excel file and a PDF report.
 
 **Stack:** Next.js 16 (App Router) on Render · Supabase (Postgres, magic-link auth, Row Level Security) · Python scripts for the one-time setup.
 
@@ -13,7 +13,7 @@ Blinding is enforced in the database, not just hidden in the UI:
 - Signed-out visitors get no access at all. Sign-in uses a magic link, and only for accounts the admin created (`shouldCreateUser: false` plus sign-ups disabled in Supabase).
 - Every rating change is written to an append-only audit table (`rating_events`) that only the admin can read.
 
-`npm run test:db` runs 30 checks against the real migration on an in-memory Postgres (PGlite) to prove the points above.
+`npm run test:db` runs 35 checks against the real migration on an in-memory Postgres (PGlite) to prove the points above.
 
 ## What's kept out of git
 
@@ -66,7 +66,7 @@ python scripts/import_cases.py data/cases.xlsx --dry-run
 python scripts/import_cases.py data/cases.xlsx --id-col "..." --admission-col "..." --us-col "..."
 ```
 
-The import never overwrites an existing case, so ratings always stay attached to the exact text the reviewer saw. Rows with a missing serial number, a missing admission text or a duplicate serial number stop the import and get listed for you to fix.
+The import never overwrites the text of an existing case, so ratings always stay attached to the exact text the reviewer saw. All other columns with a header (age, pathology type and so on) are stored as admin-only annotation data for the Excel export, and re-running the import refreshes them.
 
 ### 4. Run and deploy
 
@@ -88,13 +88,13 @@ On the free plan the service sleeps after 15 minutes without visitors, and the n
 **Admin** (`/admin`)
 - Dashboard: progress, cases not rated yet, per-reviewer distribution, Fleiss' kappa (all three reviewers), pairwise Cohen's kappa, and majority decisions.
 - **כל הקבלות**: the full table with filters (disputed, incomplete, not rated, complete). A case is *disputed* when it has at least two ratings that differ.
-- **ייצוא CSV**: one row per case with all three ratings, the majority and a disputed flag. UTF-8 with BOM, so Hebrew opens correctly in Excel, and cells are protected against formula injection.
+- **ייצוא לאקסל**: a right-to-left Excel sheet, one row per case: each reviewer's rating, the majority, a disputed flag, the admission text and ultrasound findings the reviewers saw, then every annotation column from the source spreadsheet in its original order. Frozen header row, wrapped text, and colour-coded ratings.
 - **דוח PDF**: a printable report. Click *הורדה כ-PDF* and choose *Save as PDF*. The browser renders Hebrew right-to-left correctly, which server-side PDF libraries don't do reliably.
 
 ## Development
 
 ```bash
-npm test          # statistics + CSV unit tests
+npm test          # statistics and export unit tests
 npm run test:db   # Row Level Security tests
 npm run lint
 npm run build

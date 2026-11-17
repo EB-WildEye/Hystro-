@@ -22,7 +22,7 @@ async function Dashboard() {
           </div>
           <div className="flex gap-2">
             <a href="/admin/export" className="rounded-lg bg-accent px-4 py-2 font-semibold text-white">
-              ייצוא CSV
+              ייצוא לאקסל
             </a>
             <Link href="/admin/report" className="rounded-lg border border-accent px-4 py-2 font-semibold text-accent">
               דוח PDF

@@ -64,11 +64,18 @@ check("Audit logged the removal", removal.old_rating === "specialist" && removal
 // reviewer_state
 await as(R1, ()=>q(`insert into reviewer_state (reviewer_id, last_sort_order) values ('${R1}', 2) on conflict (reviewer_id) do update set last_sort_order = excluded.last_sort_order`));
 check("R2 cannot see R1 position", (await as(R2, ()=>q(`select * from reviewer_state`))).rows.length === 0);
+// case_attributes: annotation columns, admin-only
+await db.exec(`insert into case_attributes values (1, '[{"name":"age_years","value":"בת 42"}]')`);
+check("Reviewer cannot read case attributes", (await as(R2, ()=>q(`select * from case_attributes`))).rows.length === 0);
+check("Reviewer cannot write case attributes", !!(await as(R2, ()=>err(()=>q(`insert into case_attributes values (2, '[]')`)))));
+check("Admin reads case attributes", (await as(A, ()=>q(`select * from case_attributes`))).rows.length === 1);
+check("Attributes must be a list", !!(await err(()=>q(`insert into case_attributes values (3, '{}')`))));
 // service_role: what the local admin scripts do with the secret key
 await db.exec(`set role service_role;`);
 check("Service role can upsert profiles", !(await err(()=>q(`insert into profiles values ('${R3}','Dr3b','reviewer',3) on conflict (id) do update set display_name = excluded.display_name`))));
 check("Service role can import cases", !(await err(()=>q(`insert into cases (case_number, admission_text, sort_order) values ('104','t',4)`))));
 check("Service role can read cases", (await q(`select * from cases`)).rows.length === 4);
+check("Service role can write case attributes", !(await err(()=>q(`insert into case_attributes values (2, '[]') on conflict (case_id) do update set attributes = excluded.attributes`))));
 await db.exec(`reset role;`);
 // anon
 await db.exec(`set role anon;`);

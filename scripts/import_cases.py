@@ -1,8 +1,9 @@
 """One-time import of the cases Excel into Supabase.
 
-Only three columns are read: patient serial number, admission text and
-ultrasound findings. The empty reviewer columns are ignored - ratings live in
-the app.
+Three columns are what reviewers see: patient serial number, admission text
+and ultrasound findings. Every other column with a header (age, pathology
+type, lesion size, ...) is stored as admin-only annotation data and appears
+in the admin Excel export, in the sheet's original order.
 
 Run with --dry-run first to check the column mapping and the row count.
 
@@ -14,8 +15,9 @@ Usage:
 Without the --*-col flags the first three columns are used, in that order.
 If the sheet marks "no ultrasound" with a placeholder such as 0, pass
 --us-empty 0 so reviewers see "no ultrasound findings" instead of the placeholder.
-Cases whose serial number already exists are skipped, never overwritten, so
-existing ratings always stay attached to the text they were given for.
+Cases whose serial number already exists keep their text, so existing
+ratings always stay attached to the text they were given for. Their
+annotation columns are refreshed from the sheet, which reviewers never see.
 """
 
 import argparse
@@ -67,12 +69,20 @@ def main() -> None:
     adm_col = pick(df, args.admission_col, 1, "admission text")
     us_col = pick(df, args.us_col, 2, "ultrasound findings")
 
+    # pandas names header-less columns "Unnamed: n"; those carry no annotation.
+    extra_cols = [
+        c for c in df.columns
+        if c not in (id_col, adm_col, us_col) and not str(c).startswith("Unnamed:")
+    ]
+
     print("Column mapping:")
     print(f"  serial number : {id_col}")
     print(f"  admission     : {adm_col}")
     print(f"  ultrasound    : {us_col}")
+    print(f"  annotation    : {len(extra_cols)} column(s), admin export only")
 
     rows, problems, seen = [], [], set()
+    attributes: dict[str, list[dict]] = {}
     for i, r in df.iterrows():
         excel_row = i + 2  # header is row 1
         number = clean(r[id_col])
@@ -93,6 +103,7 @@ def main() -> None:
         if ultrasound in args.us_empty:
             ultrasound = None  # placeholder for "no ultrasound", not a finding
         rows.append({"case_number": number, "admission_text": admission, "ultrasound_text": ultrasound})
+        attributes[number] = [{"name": str(c), "value": clean(r[c])} for c in extra_cols]
 
     print(f"\nValid cases: {len(rows)}   with ultrasound: {sum(1 for x in rows if x['ultrasound_text'])}")
     if problems:
@@ -128,7 +139,20 @@ def main() -> None:
     for start in range(0, len(new_rows), 500):
         client.table("cases").insert(new_rows[start : start + 500]).execute()
 
-    print(f"\nImported {len(new_rows)} new case(s); skipped {len(rows) - len(new_rows)} that already existed.")
+    # Map every sheet case to its database id, then store its annotation columns.
+    ids, start = {}, 0
+    while True:
+        batch = client.table("cases").select("id, case_number").range(start, start + 999).execute().data
+        ids.update({b["case_number"]: b["id"] for b in batch})
+        if len(batch) < 1000:
+            break
+        start += 1000
+    attribute_rows = [{"case_id": ids[row["case_number"]], "attributes": attributes[row["case_number"]]} for row in rows]
+    for start in range(0, len(attribute_rows), 500):
+        client.table("case_attributes").upsert(attribute_rows[start : start + 500]).execute()
+
+    print(f"\nImported {len(new_rows)} new case(s); kept {len(rows) - len(new_rows)} that already existed.")
+    print(f"Stored {len(extra_cols)} annotation column(s) for {len(attribute_rows)} case(s).")
 
 
 if __name__ == "__main__":
