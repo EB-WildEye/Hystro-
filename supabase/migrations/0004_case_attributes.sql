@@ -3,7 +3,7 @@
 --
 -- They live in their own table so reviewers cannot read them: a reviewer
 -- rates from the admission note and ultrasound only. Admin-only via RLS.
--- Written by scripts/import_cases.py with the secret key.
+-- Written by the in-app upload, import_dataset() in migration 0005.
 
 create table public.case_attributes (
   case_id    bigint primary key references public.cases (id) on delete cascade,
