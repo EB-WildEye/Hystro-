@@ -19,7 +19,7 @@ function Message({ profile, children }: { profile: Profile; children: React.Reac
   );
 }
 
-// Several files can be open at once; the reviewer picks one.
+// With several files, the reviewer picks one by the name the admin gave it.
 async function DatasetPicker({ profile, datasets }: { profile: Profile; datasets: Dataset[] }) {
   const progress = await Promise.all(datasets.map((d) => datasetProgress(d.id, profile.id)));
   return (
@@ -51,7 +51,7 @@ async function ReviewContent({ searchParams }: { searchParams: PageProps<"/revie
   const params = await searchParams;
   const requestedCase = parseId(params.case);
   const returnTo = params.from === "mine" ? "mine" : undefined;
-  const datasets = await listDatasets(); // active ones only, by RLS
+  const datasets = await listDatasets();
 
   // Which case to show: the one asked for, or the next unrated one in a dataset.
   let caseId = requestedCase;
@@ -62,7 +62,7 @@ async function ReviewContent({ searchParams }: { searchParams: PageProps<"/revie
     if (!dataset) {
       return (
         <Message profile={profile}>
-          <p>הקבלה לא נמצאה, או שהקובץ שלה כבר סגור לדירוג.</p>
+          <p>הקבלה לא נמצאה. ייתכן שהקובץ שלה נמחק.</p>
           <Link href="/review" className="mt-4 inline-block text-accent underline">
             חזרה לדירוג
           </Link>
@@ -73,8 +73,8 @@ async function ReviewContent({ searchParams }: { searchParams: PageProps<"/revie
     if (datasets.length === 0) {
       return (
         <Message profile={profile}>
-          <h1 className="text-2xl font-bold">אין כרגע קבצים פתוחים לדירוג</h1>
-          <p className="mt-2 text-muted">כשקובץ חדש ייפתח לדירוג, הוא יופיע כאן.</p>
+          <h1 className="text-2xl font-bold">עוד אין קבצים לדירוג</h1>
+          <p className="mt-2 text-muted">כשיעלה קובץ קבלות, הוא יופיע כאן.</p>
         </Message>
       );
     }

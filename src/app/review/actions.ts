@@ -53,8 +53,8 @@ export async function skipCase(formData: FormData) {
 }
 
 // Removes the reviewer's own rating; the case goes back to their queue.
-// RLS only lets a reviewer delete their own rows while the file is open, and
-// the removal is logged in rating_events by a database trigger.
+// RLS only lets a reviewer delete their own rows, and the removal is logged
+// in rating_events by a database trigger.
 export async function removeRating(formData: FormData) {
   const profile = await requireReviewer();
   const caseId = parseCaseId(formData);

@@ -1,6 +1,6 @@
 # Hysteroscopy rating
 
-A blinded rating tool. Three physicians read emergency-room admission notes, with ultrasound findings where there are any, and rate who should perform the hysteroscopy: **resident (מתמחה)** or **specialist (מומחה)**. The admin uploads case files in the app, opens or closes them for rating, sees all ratings, agreement statistics and disputed cases per file, and exports an Excel file and a PDF report.
+A blinded rating tool. Three physicians read emergency-room admission notes, with ultrasound findings where there are any, and rate who should perform the hysteroscopy: **resident (מתמחה)** or **specialist (מומחה)**. The admin uploads case files in the app, renames or deletes them, sees all ratings, agreement statistics and disputed cases per file, and exports an Excel file and a PDF report.
 
 **Stack:** Next.js 16 (App Router) on Render · Supabase (Postgres, magic-link auth, Row Level Security) · a Python script that creates the user accounts.
 
@@ -13,10 +13,10 @@ Blinding is enforced in the database, not just hidden in the UI:
 - Signed-out visitors get no access at all. Sign-in uses a magic link, and only for accounts the admin created (`shouldCreateUser: false` plus sign-ups disabled in Supabase).
 - Every rating change is written to an append-only audit table (`rating_events`) that only the admin can read.
 - The annotation columns of an uploaded file (age, pathology type and so on) live in an admin-only table. Reviewers rate from the admission note and ultrasound findings only.
-- Reviewers only see files that are open for rating. When a file is closed, its ratings are frozen.
+- Only the admin can rename or delete a file. Deleting removes its cases and their ratings for everyone; the audit trail keeps the ratings and records the deletion.
 - Uploads go through a database function that checks the admin role itself, so the app never holds the secret key.
 
-`npm run test:db` runs 56 checks against the real migrations, including the upgrade of existing data, on an in-memory Postgres (PGlite) to prove the points above.
+`npm run test:db` runs 61 checks against the real migrations, including the upgrade of existing data, on an in-memory Postgres (PGlite) to prove the points above.
 
 ## What's kept out of git
 
@@ -79,15 +79,15 @@ On the free plan the service sleeps after 15 minutes without visitors, and the n
 ## Using it
 
 **Reviewer** (`/review`)
-- When more than one file is open, you first choose which file to work on. Each file has its own progress, and you can switch files at any time.
+- When there is more than one file, you first choose which file to work on, by the name the admin gave it. Each file has its own progress, and you can switch files at any time.
 - Each screen shows one card: an admission note with its ultrasound findings. Swipe the card **right for מתמחה** or **left for מומחה**. The buttons under the card and the right / left arrow keys do the same. Click **הבא** to skip a case for now.
 - Every click saves immediately. Next time you sign in, you resume after the last case you touched, and you only get cases you haven't rated yet. Skipped cases come back around.
 - **הדירוגים שלי** lists your ratings, by file. **עריכה** opens the case to rate it again; **הסרה** removes the rating. A rated card also has **הסרה** next to your current rating. A removed case goes back into your queue, and the removal is kept in the audit log.
 - The moon / sun button in the header switches between light and dark mode. Until you choose, the app follows your system setting.
 
 **Admin** (`/admin`)
-- **קבצים**: upload a new case file (`.xlsx` or `.csv`) and open or close files for rating. Every file has the same structure: patient serial number, admission text and ultrasound findings in the first three columns, then any annotation columns. The upload picks the sheet with the cases (skipping legend or lookup sheets), treats `0` in the ultrasound column as "no ultrasound" by default, reads Hebrew CSV files saved by Excel in either UTF-8 or Windows-1255, and stops with a list of problem rows (missing serial number, missing admission text, duplicate serial number) without saving anything.
-- Every admin page has a file selector when there is more than one file.
+- **קבצים**: upload a new case file (`.xlsx` or `.csv`), rename a file, or delete it. Reviewers see every file; a file disappears for them only when it is deleted. Deleting asks you to type the file name, and removes its cases and all their ratings. Every file has the same structure: patient serial number, admission text and ultrasound findings in the first three columns, then any annotation columns. The upload picks the sheet with the cases (skipping legend or lookup sheets), treats `0` in the ultrasound column as "no ultrasound" by default, reads Hebrew CSV files saved by Excel in either UTF-8 or Windows-1255, and stops with a list of problem rows (missing serial number, missing admission text, duplicate serial number) without saving anything.
+- Every admin page has a file selector when there is more than one file. The dashboard can also rename the file it shows.
 - Dashboard: progress, cases not rated yet, per-reviewer distribution, Fleiss' kappa (all three reviewers), pairwise Cohen's kappa, and majority decisions.
 - **כל הקבלות**: the full table with filters (disputed, incomplete, not rated, complete). A case is *disputed* when it has at least two ratings that differ.
 - **ייצוא לאקסל**: a right-to-left Excel sheet, one row per case: each reviewer's rating, the majority, a disputed flag, the admission text and ultrasound findings the reviewers saw, then every annotation column from the source spreadsheet in its original order. Frozen header row, wrapped text, and colour-coded ratings.

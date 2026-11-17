@@ -1,6 +1,6 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import readExcelFile from "read-excel-file/node";
 import { requireAdmin } from "@/lib/dal";
 import { decodeCsv, parseCases, parseCsv, pickSheet, type RawSheet } from "@/lib/parse-cases";
@@ -70,20 +70,37 @@ export async function uploadDataset(formData: FormData): Promise<UploadResult> {
   };
 }
 
-// Opens or closes a dataset for rating. Closed datasets are hidden from
-// reviewers and their ratings are frozen; the admin still sees everything.
-export async function setDatasetActive(formData: FormData) {
+export type ManageResult = { ok: true } | { ok: false; error: string };
+
+// Renames a dataset. Reviewers choose files by this name.
+export async function renameDataset(datasetId: number, rawName: string): Promise<ManageResult> {
   await requireAdmin();
-  const id = Number(formData.get("datasetId"));
-  if (!Number.isSafeInteger(id) || id <= 0) throw new Error("Invalid dataset id");
-  const active = formData.get("active") === "true";
+  const name = rawName.trim();
+  if (!name) return { ok: false, error: "השם לא יכול להיות ריק." };
 
   const supabase = await createClient();
-  const { error, count } = await supabase
-    .from("datasets")
-    .update({ is_active: active }, { count: "exact" })
-    .eq("id", id);
-  if (error) throw new Error(error.message);
-  if (count === 0) throw new Error("Dataset not updated");
-  redirect("/admin/files");
+  const { error, count } = await supabase.from("datasets").update({ name }, { count: "exact" }).eq("id", datasetId);
+  if (error?.code === "23505") return { ok: false, error: `כבר יש קובץ בשם "${name}".` };
+  if (error) return { ok: false, error: `השינוי נכשל: ${error.message}` };
+  if (count === 0) return { ok: false, error: "הקובץ לא נמצא." };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+// Deletes a dataset with its cases, their ratings and annotation columns, for
+// everyone. The rating audit trail is kept. The admin confirms by typing the
+// file name, checked here against the name in the database.
+export async function deleteDataset(datasetId: number, typedName: string): Promise<ManageResult> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { data: dataset, error: readError } = await supabase.from("datasets").select("name").eq("id", datasetId).maybeSingle();
+  if (readError) return { ok: false, error: readError.message };
+  if (!dataset) return { ok: false, error: "הקובץ לא נמצא." };
+  if (typedName.trim() !== dataset.name) return { ok: false, error: "השם שהוקלד לא תואם לשם הקובץ." };
+
+  const { error, count } = await supabase.from("datasets").delete({ count: "exact" }).eq("id", datasetId);
+  if (error) return { ok: false, error: `המחיקה נכשלה: ${error.message}` };
+  if (count === 0) return { ok: false, error: "הקובץ לא נמחק." };
+  revalidatePath("/", "layout");
+  return { ok: true };
 }

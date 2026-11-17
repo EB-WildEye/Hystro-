@@ -101,14 +101,26 @@ check("Empty upload rejected", !!(await as(A, ()=>err(()=>q(`select import_datas
 const firstOf2 = (await q(`select id from cases where dataset_id=$1 order by sort_order limit 1`, [ds2])).rows[0].id;
 check("Queue is per dataset", (await as(R2, ()=>q(`select next_unrated_case($1, 0) as id`, [ds2]))).rows[0].id == firstOf2);
 await as(R2, ()=>q(`insert into ratings (case_id, reviewer_id, rating) values ($1,'${R2}','resident')`, [firstOf2]));
-check("Reviewer cannot switch datasets on or off", (await as(R2, ()=>q(`update datasets set is_active=false where id=$1`, [ds2]))).affectedRows === 0);
-check("Even the admin cannot rename a dataset", !!(await as(A, ()=>err(()=>q(`update datasets set name='x' where id=$1`, [ds2])))));
-check("Admin switches a dataset off", (await as(A, ()=>q(`update datasets set is_active=false where id=$1`, [ds2]))).affectedRows === 1);
-check("Reviewer no longer sees the inactive dataset", !(await as(R2, ()=>q(`select * from datasets`))).rows.some(r=>r.id == ds2));
-check("Reviewer no longer sees its cases", (await as(R2, ()=>q(`select * from cases where dataset_id=$1`, [ds2]))).rows.length === 0);
-check("Ratings in an inactive dataset are frozen", (await as(R2, ()=>q(`delete from ratings where case_id=$1`, [firstOf2]))).affectedRows === 0 && !!(await as(R2, ()=>err(()=>q(`insert into ratings (case_id, reviewer_id, rating) values ($1,'${R2}','resident')`, [firstOf2+1])))));
-check("Admin still sees the inactive dataset and its cases", (await as(A, ()=>q(`select * from cases where dataset_id=$1`, [ds2]))).rows.length === 2);
-check("Admin still sees its ratings", (await as(A, ()=>q(`select * from ratings where case_id=$1`, [firstOf2]))).rows.length === 1);
+check("Reviewer sees every dataset", (await as(R2, ()=>q(`select * from datasets`))).rows.length === 3);
+// rename
+check("Reviewer cannot rename a dataset", (await as(R2, ()=>q(`update datasets set name='x' where id=$1`, [ds2]))).affectedRows === 0);
+check("Admin renames a dataset", (await as(A, ()=>q(`update datasets set name='שם חדש' where id=$1`, [ds2]))).affectedRows === 1);
+check("Reviewer sees the new name", (await as(R2, ()=>q(`select name from datasets where id=$1`, [ds2]))).rows[0].name === "שם חדש");
+check("Rename to an existing name rejected", !!(await as(A, ()=>err(()=>q(`update datasets set name='TABLE_1' where id=$1`, [ds2])))));
+check("Blank or padded names rejected", !!(await as(A, ()=>err(()=>q(`update datasets set name=' x ' where id=$1`, [ds2])))));
+check("Admin can change only the name", !!(await as(A, ()=>err(()=>q(`update datasets set created_at=now() where id=$1`, [ds2])))));
+// delete
+check("Reviewer cannot delete a dataset", (await as(R2, ()=>q(`delete from datasets where id=$1`, [ds2]))).affectedRows === 0);
+await as(R2, ()=>q(`insert into reviewer_state (reviewer_id, dataset_id, last_sort_order) values ('${R2}', $1, 1)`, [ds2]));
+check("Admin deletes a dataset", (await as(A, ()=>q(`delete from datasets where id=$1`, [ds2]))).affectedRows === 1);
+check("Its cases, ratings, attributes and queue positions are gone",
+  (await q(`select count(*)::int as n from cases where dataset_id=$1`, [ds2])).rows[0].n === 0 &&
+  (await q(`select count(*)::int as n from ratings where case_id=$1`, [firstOf2])).rows[0].n === 0 &&
+  (await q(`select count(*)::int as n from case_attributes where case_id=$1`, [firstOf2])).rows[0].n === 0 &&
+  (await q(`select count(*)::int as n from reviewer_state where dataset_id=$1`, [ds2])).rows[0].n === 0);
+check("Reviewer no longer sees the deleted dataset", !(await as(R2, ()=>q(`select * from datasets`))).rows.some(r=>r.id == ds2));
+check("Audit trail keeps the rating and records its deletion", (await q(`select new_rating from rating_events where case_id=$1 order by id`, [firstOf2])).rows.map(r=>r.new_rating ?? "deleted").join() === "resident,deleted");
+check("Other datasets untouched", (await q(`select count(*)::int as n from cases where dataset_id=1`)).rows[0].n === 4);
 // anon
 await db.exec(`set role anon;`);
 check("Anon cannot read cases", !!(await err(()=>q(`select * from cases`))));

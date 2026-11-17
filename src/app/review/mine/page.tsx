@@ -14,8 +14,8 @@ type Row = { id: number; caseNumber: string; sortOrder: number; rating: Rating |
 async function MyRatings() {
   const profile = await requireReviewer();
   const supabase = await createClient();
-  const datasets = await listDatasets(); // open files only, by RLS
-  // RLS returns only this reviewer's rows, and only cases in open files.
+  const datasets = await listDatasets();
+  // RLS returns only this reviewer's own ratings.
   const { data, error } = await supabase
     .from("ratings")
     .select("rating, updated_at, cases!inner(id, case_number, sort_order, dataset_id)")

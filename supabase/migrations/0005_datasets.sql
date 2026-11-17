@@ -1,8 +1,8 @@
 -- Datasets: each uploaded spreadsheet of cases is its own dataset.
 --
--- * Several datasets can be active at once; each reviewer picks which one to
---   work on. An inactive dataset is hidden from reviewers and its ratings are
---   frozen, but everything stays for the admin's dashboard and export.
+-- * Every dataset is open to all reviewers; each reviewer picks which one to
+--   work on, by the name the admin gives it. The admin can rename a dataset,
+--   and deleting it removes it for everyone, with its cases and ratings.
 -- * Cases, queue position and statistics are per dataset.
 -- * The admin uploads datasets in the app through import_dataset(), which
 --   checks the admin role itself, so the app never needs the secret key.
@@ -15,26 +15,30 @@
 
 create table public.datasets (
   id         bigint generated always as identity primary key,
-  name       text not null unique check (length(btrim(name)) > 0),
-  is_active  boolean not null default true,
+  name       text not null unique check (length(btrim(name)) > 0 and name = btrim(name)),
   created_at timestamptz not null default now()
 );
 
 alter table public.datasets enable row level security;
 
--- Reviewers see active datasets; the admin sees all of them.
 create policy datasets_select on public.datasets
   for select to authenticated
-  using (((select public.is_reviewer()) and is_active) or (select public.is_admin()));
+  using ((select public.is_reviewer()) or (select public.is_admin()));
 
--- The admin can switch a dataset on or off (and nothing else, see the grant).
+-- The admin can rename a dataset (and change nothing else, see the grant).
 create policy datasets_admin_update on public.datasets
   for update to authenticated
   using ((select public.is_admin()))
   with check ((select public.is_admin()));
 
-grant select on public.datasets to authenticated;
-grant update (is_active) on public.datasets to authenticated;
+-- Deleting a dataset removes its cases, their ratings and annotation columns
+-- (on delete cascade). The rating audit trail in rating_events is kept.
+create policy datasets_admin_delete on public.datasets
+  for delete to authenticated
+  using ((select public.is_admin()));
+
+grant select, delete on public.datasets to authenticated;
+grant update (name) on public.datasets to authenticated;
 grant select, insert, update, delete on public.datasets to service_role;
 
 -- ---------------------------------------------------------------------------
@@ -53,50 +57,6 @@ alter table public.cases drop constraint cases_case_number_key;
 alter table public.cases drop constraint cases_sort_order_key;
 alter table public.cases add constraint cases_dataset_case_number_key unique (dataset_id, case_number);
 alter table public.cases add constraint cases_dataset_sort_order_key unique (dataset_id, sort_order);
-
--- True when the case belongs to an active dataset. Security definer so that
--- policies on other tables can call it without exposing datasets.
-create function public.case_is_open(p_case_id bigint) returns boolean
-language sql stable security definer set search_path = ''
-as $$
-  select exists (
-    select 1
-    from public.cases c
-    join public.datasets d on d.id = c.dataset_id
-    where c.id = p_case_id and d.is_active
-  );
-$$;
-
-revoke all on function public.case_is_open(bigint) from public, anon;
-grant execute on function public.case_is_open(bigint) to authenticated;
-
--- Reviewers read cases of active datasets only.
-drop policy cases_select on public.cases;
-create policy cases_select on public.cases
-  for select to authenticated
-  using (
-    ((select public.is_reviewer()) and public.case_is_open(id))
-    or (select public.is_admin())
-  );
-
--- Ratings can be added, changed or removed only while the dataset is active.
-drop policy ratings_insert_own on public.ratings;
-create policy ratings_insert_own on public.ratings
-  for insert to authenticated
-  with check (
-    reviewer_id = (select auth.uid()) and (select public.is_reviewer()) and public.case_is_open(case_id)
-  );
-
-drop policy ratings_update_own on public.ratings;
-create policy ratings_update_own on public.ratings
-  for update to authenticated
-  using (reviewer_id = (select auth.uid()) and (select public.is_reviewer()) and public.case_is_open(case_id))
-  with check (reviewer_id = (select auth.uid()) and (select public.is_reviewer()) and public.case_is_open(case_id));
-
-drop policy ratings_delete_own on public.ratings;
-create policy ratings_delete_own on public.ratings
-  for delete to authenticated
-  using (reviewer_id = (select auth.uid()) and (select public.is_reviewer()) and public.case_is_open(case_id));
 
 -- ---------------------------------------------------------------------------
 -- Queue position per reviewer and dataset

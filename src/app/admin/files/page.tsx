@@ -5,7 +5,8 @@ import { requireAdmin } from "@/lib/dal";
 import { listDatasets } from "@/lib/datasets";
 import { createClient } from "@/lib/supabase/server";
 import { ADMIN_NAV } from "../nav";
-import { setDatasetActive } from "./actions";
+import { DeleteDataset } from "./delete-dataset";
+import { RenameDataset } from "./rename-dataset";
 import { UploadForm } from "./upload-form";
 
 async function Files() {
@@ -30,14 +31,14 @@ async function Files() {
         <section>
           <h1 className="text-2xl font-bold">קבצים</h1>
           <p className="mt-1 text-sm text-muted">
-            הסוקרים רואים רק קבצים פתוחים, ובוחרים על איזה מהם לעבוד. בקובץ סגור הדירוגים נשמרים ולא ניתנים לשינוי.
+            כל הקבצים זמינים לסוקרים, והם בוחרים על איזה לעבוד לפי השם שנותנים כאן. קובץ נעלם אצל הסוקרים רק כשמוחקים אותו.
           </p>
           {datasets.length === 0 ? (
             <p className="mt-6 text-muted">עוד לא הועלו קבצים.</p>
           ) : (
             <ul className="mt-4 divide-y divide-line rounded-2xl bg-surface shadow-card">
               {datasets.map((d, i) => (
-                <li key={d.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+                <li key={d.id} className="flex flex-wrap items-center gap-x-2 gap-y-2 px-4 py-3">
                   <div className="min-w-0 flex-1">
                     <Link href={`/admin?dataset=${d.id}`} className="font-semibold hover:underline">
                       {d.name}
@@ -46,20 +47,9 @@ async function Files() {
                       {counts[i]} קבלות · הועלה {new Date(d.created_at).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}
                     </p>
                   </div>
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-sm font-semibold ${
-                      d.is_active ? "bg-resident-soft text-resident" : "bg-line text-muted"
-                    }`}
-                  >
-                    {d.is_active ? "פתוח" : "סגור"}
-                  </span>
-                  <form action={setDatasetActive}>
-                    <input type="hidden" name="datasetId" value={d.id} />
-                    <input type="hidden" name="active" value={String(!d.is_active)} />
-                    <button type="submit" className="rounded-full border border-line px-3 py-1.5 text-sm hover:bg-bg">
-                      {d.is_active ? "סגירה לדירוג" : "פתיחה לדירוג"}
-                    </button>
-                  </form>
+                  <RenameDataset datasetId={d.id} name={d.name} />
+                  {/* Expands to a full-width confirmation, so it is a direct child of the wrapping row. */}
+                  <DeleteDataset datasetId={d.id} name={d.name} cases={counts[i]} />
                 </li>
               ))}
             </ul>

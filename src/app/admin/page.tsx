@@ -4,6 +4,7 @@ import { Header } from "@/components/header";
 import { AnalyticsView } from "@/components/analytics-view";
 import { DatasetTabs, NoDatasets } from "@/components/dataset-tabs";
 import { adminContext, loadAdminData } from "@/lib/admin-data";
+import { RenameDataset } from "./files/rename-dataset";
 import { ADMIN_NAV } from "./nav";
 
 async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["searchParams"] }) {
@@ -28,10 +29,12 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
         <DatasetTabs datasets={datasets} current={dataset} basePath="/admin" />
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">דשבורד - {dataset.name}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold">דשבורד - {dataset.name}</h1>
+              <RenameDataset key={dataset.id} datasetId={dataset.id} name={dataset.name} />
+            </div>
             <p className="text-sm text-muted">
-              {dataset.is_active ? "פתוח לדירוג" : "סגור לדירוג"} · עודכן{" "}
-              {generatedAt.toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" })}
+              עודכן {generatedAt.toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" })}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

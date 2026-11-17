@@ -89,7 +89,7 @@ export function UploadForm() {
       {result?.ok && (
         <div role="status" className="rounded-xl bg-resident-soft p-4 text-ink">
           <p className="font-semibold">
-            הקובץ &quot;{result.name}&quot; נוסף ופתוח לדירוג.
+            הקובץ &quot;{result.name}&quot; נוסף, והסוקרים כבר יכולים לדרג אותו.
           </p>
           <p className="mt-1 text-sm">
             {result.cases} קבלות, מתוכן {result.withUltrasound} עם ממצאי אולטרסאונד, ו-{result.attributeCount} עמודות נוספות

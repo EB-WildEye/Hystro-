@@ -28,7 +28,6 @@ export function DatasetTabs({
           }`}
         >
           {d.name}
-          {!d.is_active && <span className="ms-1 text-muted">(סגור)</span>}
         </Link>
       ))}
     </nav>
