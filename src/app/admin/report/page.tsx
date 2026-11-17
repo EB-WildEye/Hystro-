@@ -2,29 +2,41 @@ import { Suspense } from "react";
 import { Header } from "@/components/header";
 import { AnalyticsView } from "@/components/analytics-view";
 import { RatingBadge } from "@/components/rating-badge";
-import { getProfile } from "@/lib/dal";
-import { loadAdminData } from "@/lib/admin-data";
+import { DatasetTabs, NoDatasets } from "@/components/dataset-tabs";
+import { adminContext, loadAdminData } from "@/lib/admin-data";
 import { ADMIN_NAV } from "../nav";
 import { PrintButton } from "./print-button";
 
 // Printable analytics report. "Download as PDF" opens the browser's print
 // dialog with "Save as PDF"; the browser renders Hebrew RTL text correctly,
 // which server-side PDF libraries do not reliably do.
-async function Report() {
-  const { analytics, summaries, reviewers, generatedAt } = await loadAdminData();
-  const profile = await getProfile();
+async function Report({ searchParams }: { searchParams: PageProps<"/admin/report">["searchParams"] }) {
+  const { profile, datasets, dataset } = await adminContext((await searchParams).dataset);
+  const header = <Header title="ניהול - דירוג היסטרוסקופיה" nav={ADMIN_NAV} userName={profile.display_name} />;
+  if (!dataset) {
+    return (
+      <>
+        {header}
+        <main className="mx-auto w-full max-w-5xl px-4 py-6">
+          <NoDatasets />
+        </main>
+      </>
+    );
+  }
+  const { analytics, summaries, reviewers, generatedAt } = await loadAdminData(dataset.id);
   const ambivalent = summaries.filter((s) => s.ambivalent);
 
   return (
     <>
-      <Header title="ניהול - דירוג היסטרוסקופיה" nav={ADMIN_NAV} userName={profile?.display_name} />
+      {header}
       <main className="mx-auto w-full max-w-5xl px-4 py-6 print:max-w-none print:px-0 print:py-0">
+        <DatasetTabs datasets={datasets} current={dataset} basePath="/admin/report" />
         <div className="no-print mb-6 flex items-center justify-between rounded-xl border border-line bg-surface p-4">
           <p className="text-sm text-muted">בחלון ההדפסה יש לבחור &quot;שמירה כ-PDF&quot; כיעד.</p>
           <PrintButton />
         </div>
 
-        <h1 className="text-2xl font-bold">דוח דירוג רמת מבצע להיסטרוסקופיה</h1>
+        <h1 className="text-2xl font-bold">דוח דירוג רמת מבצע להיסטרוסקופיה - {dataset.name}</h1>
         <p className="mb-6 text-sm text-muted">
           הופק {generatedAt.toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" })}
         </p>
@@ -68,10 +80,10 @@ async function Report() {
   );
 }
 
-export default function ReportPage() {
+export default function ReportPage(props: PageProps<"/admin/report">) {
   return (
     <Suspense fallback={<p className="p-8 text-muted">טוען...</p>}>
-      <Report />
+      <Report searchParams={props.searchParams} />
     </Suspense>
   );
 }

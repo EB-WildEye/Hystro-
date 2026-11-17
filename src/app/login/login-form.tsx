@@ -55,7 +55,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={state === "sending"}
-        className="mt-2 rounded-lg bg-accent px-4 py-2.5 font-semibold text-white disabled:opacity-60"
+        className="mt-2 rounded-lg bg-accent px-4 py-2.5 font-semibold text-on-accent disabled:opacity-60"
       >
         {state === "sending" ? "שולח..." : "שליחת קישור כניסה"}
       </button>

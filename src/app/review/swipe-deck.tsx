@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { RATING_LABEL, type Rating } from "@/lib/labels";
 import { rateCase, skipCase } from "./actions";
+import { RemoveRating } from "./remove-rating";
 
 type Choice = Rating | "skip";
 
@@ -140,9 +141,12 @@ export function SwipeDeck({
               מטופלת <span dir="ltr">{caseNumber}</span>
             </h1>
             {current && (
-              <p className="text-sm text-muted">
-                דירגת: <span className="font-semibold text-ink">{RATING_LABEL[current]}</span>
-              </p>
+              <div className="flex flex-wrap items-center justify-end gap-x-1 text-sm text-muted">
+                <span>
+                  דירגת: <span className="font-semibold text-ink">{RATING_LABEL[current]}</span>
+                </span>
+                <RemoveRating caseId={caseId} caseNumber={caseNumber} returnTo="case" />
+              </div>
             )}
           </header>
 
@@ -197,7 +201,7 @@ export function SwipeDeck({
           disabled={busy}
           onClick={() => choose("specialist")}
           className={`choice-btn flex-1 border-specialist ${
-            current === "specialist" ? "bg-specialist text-white" : "text-specialist hover:bg-specialist-soft"
+            current === "specialist" ? "bg-specialist text-on-accent" : "text-specialist hover:bg-specialist-soft"
           }`}
         >
           {RATING_LABEL.specialist}
@@ -215,7 +219,7 @@ export function SwipeDeck({
           disabled={busy}
           onClick={() => choose("resident")}
           className={`choice-btn flex-1 border-resident ${
-            current === "resident" ? "bg-resident text-white" : "text-resident hover:bg-resident-soft"
+            current === "resident" ? "bg-resident text-on-accent" : "text-resident hover:bg-resident-soft"
           }`}
         >
           {RATING_LABEL.resident}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ThemeToggle } from "./theme-toggle";
 
 type NavItem = { href: string; label: string };
 
@@ -15,6 +16,7 @@ export function Header({ title, nav, userName }: { title: string; nav: NavItem[]
           ))}
         </nav>
         <div className="ms-auto flex items-center gap-3 text-sm">
+          <ThemeToggle />
           {userName && <span className="hidden text-muted sm:inline">{userName}</span>}
           <form action="/auth/signout" method="post">
             <button type="submit" className="rounded-md border border-line px-3 py-1 hover:bg-bg">

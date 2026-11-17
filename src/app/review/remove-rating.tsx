@@ -1,10 +1,20 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { removeRating } from "../actions";
+import { removeRating } from "./actions";
 
 // Two-step removal: the first click asks, the second one removes.
-export function RemoveRating({ caseId, caseNumber }: { caseId: number; caseNumber: string }) {
+// returnTo "case" stays on the case after removing; the default goes back to
+// the ratings list.
+export function RemoveRating({
+  caseId,
+  caseNumber,
+  returnTo,
+}: {
+  caseId: number;
+  caseNumber: string;
+  returnTo?: "case";
+}) {
   const [asking, setAsking] = useState(false);
   const [failed, setFailed] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -13,6 +23,7 @@ export function RemoveRating({ caseId, caseNumber }: { caseId: number; caseNumbe
     setFailed(false);
     const data = new FormData();
     data.set("caseId", String(caseId));
+    if (returnTo) data.set("returnTo", returnTo);
     startTransition(async () => {
       try {
         await removeRating(data);
@@ -30,7 +41,7 @@ export function RemoveRating({ caseId, caseNumber }: { caseId: number; caseNumbe
         type="button"
         onClick={() => setAsking(true)}
         aria-label={`הסרת הדירוג של מטופלת ${caseNumber}`}
-        className="me-3 rounded-full px-3 py-1.5 text-sm text-muted hover:bg-bg hover:text-ink"
+        className="rounded-full px-3 py-1.5 text-sm text-muted hover:bg-bg hover:text-ink"
       >
         הסרה
       </button>
@@ -38,13 +49,13 @@ export function RemoveRating({ caseId, caseNumber }: { caseId: number; caseNumbe
   }
 
   return (
-    <span className="me-3 flex items-center gap-2 text-sm">
+    <span className="flex flex-wrap items-center gap-2 text-sm">
       {failed ? <span className="text-specialist">ההסרה נכשלה</span> : <span className="text-muted">להסיר את הדירוג?</span>}
       <button
         type="button"
         disabled={pending}
         onClick={remove}
-        className="rounded-full bg-specialist px-3 py-1.5 font-semibold text-white disabled:opacity-50"
+        className="rounded-full bg-specialist px-3 py-1.5 font-semibold text-on-accent disabled:opacity-50"
       >
         הסרה
       </button>

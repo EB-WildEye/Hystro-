@@ -1,77 +1,126 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Header } from "@/components/header";
-import { requireReviewer } from "@/lib/dal";
+import { ProgressBar } from "@/components/progress-bar";
+import { requireReviewer, type Profile } from "@/lib/dal";
+import { listDatasets, parseId, type Dataset } from "@/lib/datasets";
 import { isRating } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
+import { REVIEW_NAV } from "./nav";
+import { datasetProgress } from "./progress";
 import { SwipeDeck } from "./swipe-deck";
 
-const NAV = [
-  { href: "/review", label: "דירוג" },
-  { href: "/review/mine", label: "הדירוגים שלי" },
-];
+function Message({ profile, children }: { profile: Profile; children: React.ReactNode }) {
+  return (
+    <>
+      <Header title="דירוג היסטרוסקופיה" nav={REVIEW_NAV} userName={profile.display_name} />
+      <main className="mx-auto w-full max-w-xl px-4 py-16 text-center">{children}</main>
+    </>
+  );
+}
+
+// Several files can be open at once; the reviewer picks one.
+async function DatasetPicker({ profile, datasets }: { profile: Profile; datasets: Dataset[] }) {
+  const progress = await Promise.all(datasets.map((d) => datasetProgress(d.id, profile.id)));
+  return (
+    <>
+      <Header title="דירוג היסטרוסקופיה" nav={REVIEW_NAV} userName={profile.display_name} />
+      <main className="mx-auto w-full max-w-xl px-4 py-10">
+        <h1 className="text-2xl font-bold">על איזה קובץ לעבוד?</h1>
+        <ul className="mt-6 flex flex-col gap-3">
+          {datasets.map((d, i) => (
+            <li key={d.id}>
+              <Link
+                href={`/review?dataset=${d.id}`}
+                className="block rounded-2xl bg-surface p-5 shadow-card transition hover:ring-2 hover:ring-accent"
+              >
+                <span className="mb-3 block text-lg font-semibold">{d.name}</span>
+                <ProgressBar done={progress[i].done} total={progress[i].total} label={`התקדמות בקובץ ${d.name}`} />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </main>
+    </>
+  );
+}
 
 async function ReviewContent({ searchParams }: { searchParams: PageProps<"/review">["searchParams"] }) {
   const profile = await requireReviewer();
   const supabase = await createClient();
   const params = await searchParams;
-  const requested = Number(params.case);
+  const requestedCase = parseId(params.case);
   const returnTo = params.from === "mine" ? "mine" : undefined;
+  const datasets = await listDatasets(); // active ones only, by RLS
 
-  let caseId: number | null = Number.isSafeInteger(requested) && requested > 0 ? requested : null;
-  if (!caseId) {
+  // Which case to show: the one asked for, or the next unrated one in a dataset.
+  let caseId = requestedCase;
+  let dataset: Dataset | undefined;
+  if (caseId) {
+    const { data } = await supabase.from("cases").select("dataset_id").eq("id", caseId).maybeSingle();
+    dataset = datasets.find((d) => d.id === data?.dataset_id);
+    if (!dataset) {
+      return (
+        <Message profile={profile}>
+          <p>הקבלה לא נמצאה, או שהקובץ שלה כבר סגור לדירוג.</p>
+          <Link href="/review" className="mt-4 inline-block text-accent underline">
+            חזרה לדירוג
+          </Link>
+        </Message>
+      );
+    }
+  } else {
+    if (datasets.length === 0) {
+      return (
+        <Message profile={profile}>
+          <h1 className="text-2xl font-bold">אין כרגע קבצים פתוחים לדירוג</h1>
+          <p className="mt-2 text-muted">כשקובץ חדש ייפתח לדירוג, הוא יופיע כאן.</p>
+        </Message>
+      );
+    }
+    dataset = datasets.find((d) => d.id === parseId(params.dataset));
+    if (!dataset && datasets.length === 1) dataset = datasets[0];
+    if (!dataset) return <DatasetPicker profile={profile} datasets={datasets} />;
+
     const { data: state } = await supabase
       .from("reviewer_state")
       .select("last_sort_order")
       .eq("reviewer_id", profile.id)
+      .eq("dataset_id", dataset.id)
       .maybeSingle();
     const { data: next, error } = await supabase.rpc("next_unrated_case", {
+      p_dataset_id: dataset.id,
       after_order: state?.last_sort_order ?? 0,
     });
     if (error) throw new Error(error.message);
     caseId = (next as number | null) ?? null;
   }
 
-  const [{ count: total }, { count: mine }] = await Promise.all([
-    supabase.from("cases").select("id", { count: "exact", head: true }),
-    supabase.from("ratings").select("id", { count: "exact", head: true }).eq("reviewer_id", profile.id),
-  ]);
-
-  const done = mine ?? 0;
-  const all = total ?? 0;
+  const { total, done } = await datasetProgress(dataset.id, profile.id);
   const progress = (
-    <div className="flex items-center gap-3 text-sm text-muted">
-      <div
-        role="progressbar"
-        aria-label="התקדמות בדירוג"
-        aria-valuemin={0}
-        aria-valuemax={all}
-        aria-valuenow={done}
-        className="h-1.5 flex-1 overflow-hidden rounded-full bg-line"
-      >
-        <div className="h-full rounded-full bg-accent" style={{ width: `${all ? (done / all) * 100 : 0}%` }} />
+    <div className="mx-auto w-full max-w-2xl">
+      <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
+        <span className="font-semibold">{dataset.name}</span>
+        {datasets.length > 1 && (
+          <Link href="/review" className="text-accent hover:underline">
+            החלפת קובץ
+          </Link>
+        )}
       </div>
-      <span className="tabular-nums">
-        {done} מתוך {all}
-      </span>
+      <ProgressBar done={done} total={total} label={`התקדמות בקובץ ${dataset.name}`} />
     </div>
   );
 
-  const header = <Header title="דירוג היסטרוסקופיה" nav={NAV} userName={profile.display_name} />;
-
   if (!caseId) {
     return (
-      <>
-        {header}
-        <main className="mx-auto w-full max-w-xl px-4 py-16 text-center">
-          {progress}
-          <h1 className="mt-8 text-2xl font-bold">סיימת לדרג את כל הקבלות</h1>
-          <p className="mt-2 text-muted">תודה! אפשר לעבור על הדירוגים שלך ולשנות אותם.</p>
-          <Link href="/review/mine" className="mt-6 inline-block rounded-full bg-accent px-6 py-2.5 font-semibold text-white">
-            הדירוגים שלי
-          </Link>
-        </main>
-      </>
+      <Message profile={profile}>
+        {progress}
+        <h1 className="mt-8 text-2xl font-bold">סיימת לדרג את כל הקבלות בקובץ</h1>
+        <p className="mt-2 text-muted">תודה! אפשר לעבור על הדירוגים שלך ולערוך אותם.</p>
+        <Link href="/review/mine" className="mt-6 inline-block rounded-full bg-accent px-6 py-2.5 font-semibold text-on-accent">
+          הדירוגים שלי
+        </Link>
+      </Message>
     );
   }
 
@@ -79,24 +128,14 @@ async function ReviewContent({ searchParams }: { searchParams: PageProps<"/revie
     supabase.from("cases").select("id, case_number, admission_text, ultrasound_text").eq("id", caseId).maybeSingle(),
     supabase.from("ratings").select("rating").eq("case_id", caseId).eq("reviewer_id", profile.id).maybeSingle(),
   ]);
-  if (!c) {
-    return (
-      <>
-        {header}
-        <main className="mx-auto max-w-xl px-4 py-16 text-center">
-          <p>הקבלה לא נמצאה.</p>
-          <Link href="/review" className="mt-4 inline-block text-accent underline">חזרה לדירוג</Link>
-        </main>
-      </>
-    );
-  }
+  if (!c) throw new Error("Case not found");
   const current = isRating(own?.rating) ? own.rating : null;
 
   return (
     <div className="flex h-dvh min-h-[34rem] flex-col">
-      {header}
+      <Header title="דירוג היסטרוסקופיה" nav={REVIEW_NAV} userName={profile.display_name} />
       <main className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-4">
-        <div className="mx-auto w-full max-w-2xl">{progress}</div>
+        {progress}
         <SwipeDeck
           key={c.id}
           caseId={c.id}

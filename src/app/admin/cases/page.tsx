@@ -2,8 +2,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Header } from "@/components/header";
 import { RatingBadge } from "@/components/rating-badge";
-import { getProfile } from "@/lib/dal";
-import { loadAdminData } from "@/lib/admin-data";
+import { DatasetTabs, NoDatasets } from "@/components/dataset-tabs";
+import { adminContext, loadAdminData } from "@/lib/admin-data";
 import type { CaseSummary } from "@/lib/stats";
 import { ADMIN_NAV } from "../nav";
 
@@ -17,19 +17,34 @@ const FILTERS = {
 type FilterKey = keyof typeof FILTERS;
 
 async function CasesTable({ searchParams }: { searchParams: PageProps<"/admin/cases">["searchParams"] }) {
-  const { summaries, reviewers } = await loadAdminData();
-  const profile = await getProfile();
-  const raw = (await searchParams).filter;
+  const params = await searchParams;
+  const { profile, datasets, dataset } = await adminContext(params.dataset);
+  const header = <Header title="ניהול - דירוג היסטרוסקופיה" nav={ADMIN_NAV} userName={profile.display_name} />;
+  if (!dataset) {
+    return (
+      <>
+        {header}
+        <main className="mx-auto w-full max-w-6xl px-4 py-6">
+          <NoDatasets />
+        </main>
+      </>
+    );
+  }
+  const { summaries, reviewers } = await loadAdminData(dataset.id);
+  const raw = params.filter;
   const filter: FilterKey = typeof raw === "string" && raw in FILTERS ? (raw as FilterKey) : "all";
   const rows = summaries.filter(FILTERS[filter].test);
 
   return (
     <>
-      <Header title="ניהול - דירוג היסטרוסקופיה" nav={ADMIN_NAV} userName={profile?.display_name} />
+      {header}
       <main className="mx-auto w-full max-w-6xl px-4 py-6">
+        <DatasetTabs datasets={datasets} current={dataset} basePath="/admin/cases" extra={`&filter=${filter}`} />
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold">קבלות ({rows.length})</h1>
-          <a href="/admin/export" className="rounded-lg bg-accent px-4 py-2 font-semibold text-white">
+          <h1 className="text-2xl font-bold">
+            קבלות - {dataset.name} ({rows.length})
+          </h1>
+          <a href={`/admin/export?dataset=${dataset.id}`} className="rounded-lg bg-accent px-4 py-2 font-semibold text-on-accent">
             ייצוא לאקסל
           </a>
         </div>
@@ -37,7 +52,7 @@ async function CasesTable({ searchParams }: { searchParams: PageProps<"/admin/ca
           {(Object.keys(FILTERS) as FilterKey[]).map((key) => (
             <Link
               key={key}
-              href={`/admin/cases?filter=${key}`}
+              href={`/admin/cases?dataset=${dataset.id}&filter=${key}`}
               className={`rounded-full border px-3 py-1 ${key === filter ? "border-accent bg-accent-soft text-accent" : "border-line"}`}
             >
               {FILTERS[key].label} ({summaries.filter(FILTERS[key].test).length})
