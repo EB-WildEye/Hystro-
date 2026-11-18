@@ -58,7 +58,7 @@ export function RenameDataset({ datasetId, name }: { datasetId: number; name: st
         ביטול
       </button>
       {error && (
-        <span role="alert" className="w-full text-specialist">
+        <span role="alert" className="w-full text-danger">
           {error}
         </span>
       )}

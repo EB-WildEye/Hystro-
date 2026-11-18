@@ -1,4 +1,5 @@
-export function ProgressBar({ done, total, label }: { done: number; total: number; label: string }) {
+// unit names what is counted, e.g. "דירוגים" (ratings: two per case).
+export function ProgressBar({ done, total, label, unit }: { done: number; total: number; label: string; unit?: string }) {
   return (
     <div className="flex items-center gap-3 text-sm text-muted">
       <div
@@ -13,6 +14,7 @@ export function ProgressBar({ done, total, label }: { done: number; total: numbe
       </div>
       <span className="tabular-nums">
         {done} מתוך {total}
+        {unit && ` ${unit}`}
       </span>
     </div>
   );

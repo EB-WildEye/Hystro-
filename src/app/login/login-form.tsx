@@ -59,7 +59,7 @@ export function LoginForm() {
       >
         {state === "sending" ? "שולח..." : "שליחת קישור כניסה"}
       </button>
-      {state === "error" && <p className="text-sm text-specialist">אירעה שגיאה. נסו שוב בעוד דקה.</p>}
+      {state === "error" && <p className="text-sm text-danger">אירעה שגיאה. נסו שוב בעוד דקה.</p>}
     </form>
   );
 }

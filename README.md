@@ -1,6 +1,6 @@
 # Hysteroscopy rating
 
-A blinded rating tool. Three physicians read emergency-room admission notes, with ultrasound findings where there are any, and rate who should perform the hysteroscopy: **resident (מתמחה)** or **specialist (מומחה)**. The admin uploads case files in the app, renames or deletes them, sees all ratings, agreement statistics and disputed cases per file, and exports an Excel file and a PDF report.
+A blinded rating tool. Three physicians read emergency-room admission notes, with ultrasound findings where there are any, and rate, for each case and in two separate steps, who should perform the hysteroscopy: **junior specialist (מומחה צעיר)** or **senior specialist (מומחה ותיק)**. Step 1 is entering the uterine cavity (diagnostic hysteroscopy); step 2 is the operative procedure (operative hysteroscopy), which can also be rated **not applicable (לא רלוונטי)** when no operative step is needed. The admin uploads case files in the app, renames or deletes them, sees all ratings, agreement statistics and disputed cases per file, and exports an Excel file and a PDF report.
 
 **Stack:** Next.js 16 (App Router) on Render · Supabase (Postgres, magic-link auth, Row Level Security) · a Python script that creates the user accounts.
 
@@ -80,17 +80,17 @@ On the free plan the service sleeps after 15 minutes without visitors, and the n
 
 **Reviewer** (`/review`)
 - When there is more than one file, you first choose which file to work on, by the name the admin gave it. Each file has its own progress, and you can switch files at any time.
-- Each screen shows one card: an admission note with its ultrasound findings. Swipe the card **right for מתמחה** or **left for מומחה**. The buttons under the card and the right / left arrow keys do the same. Click **הבא** to skip a case for now.
-- Every click saves immediately. Next time you sign in, you resume after the last case you touched, and you only get cases you haven't rated yet. Skipped cases come back around.
-- **הדירוגים שלי** lists your ratings, by file. **עריכה** opens the case to rate it again; **הסרה** removes the rating. A rated card also has **הסרה** next to your current rating. A removed case goes back into your queue, and the removal is kept in the audit log.
+- Each case is two cards in a row, marked *שלב 1 מתוך 2* (entering the uterine cavity) and *שלב 2 מתוך 2* (the operative procedure), both showing the admission note with its ultrasound findings. Swipe a card **right for מומחה צעיר** or **left for מומחה ותיק**. The buttons under the card and the right / left arrow keys do the same. The operative card also has **לא רלוונטי** (button or down arrow). Click **הבא** to skip a card for now.
+- Every click saves immediately. Next time you sign in, you resume after the last card you touched, and you only get cards you haven't rated yet. Skipped cards come back around. Progress counts ratings: two per case.
+- **הדירוגים שלי** lists your ratings, by file, with both steps of each case side by side. **עריכה** opens that step's card to rate it again; **הסרה** removes that one rating. A rated card also has **הסרה** next to your current rating. A removed rating goes back into your queue, and the removal is kept in the audit log.
 - The moon / sun button in the header switches between light and dark mode. Until you choose, the app follows your system setting.
 
 **Admin** (`/admin`)
 - **קבצים**: upload a new case file (`.xlsx` or `.csv`), rename a file, or delete it. Reviewers see every file; a file disappears for them only when it is deleted. Deleting asks you to type the file name, and removes its cases and all their ratings. Every file has the same structure: patient serial number, admission text and ultrasound findings in the first three columns, then any annotation columns. The upload picks the sheet with the cases (skipping legend or lookup sheets), treats `0` in the ultrasound column as "no ultrasound" by default, reads Hebrew CSV files saved by Excel in either UTF-8 or Windows-1255, and stops with a list of problem rows (missing serial number, missing admission text, duplicate serial number) without saving anything.
 - Every admin page has a file selector when there is more than one file. The dashboard can also rename the file it shows.
-- Dashboard: progress, cases not rated yet, per-reviewer distribution, Fleiss' kappa (all three reviewers), pairwise Cohen's kappa, and majority decisions.
-- **כל הקבלות**: the full table with filters (disputed, incomplete, not rated, complete). A case is *disputed* when it has at least two ratings that differ.
-- **ייצוא לאקסל**: a right-to-left Excel sheet, one row per case: each reviewer's rating, the majority, a disputed flag, the admission text and ultrasound findings the reviewers saw, then every annotation column from the source spreadsheet in its original order. Frozen header row, wrapped text, and colour-coded ratings.
+- Dashboard: overall progress, then a section per step: per-reviewer distribution, Fleiss' kappa (all three reviewers), pairwise Cohen's kappa, and majority decisions. Each step is analysed with its own answer options as categories.
+- **כל הקבלות**: the full table with filters (disputed, incomplete, not rated, complete). A step is *disputed* when it has at least two ratings that differ; a case is disputed when either step is.
+- **ייצוא לאקסל**: a right-to-left Excel sheet, one row per case: each reviewer's rating for each step, the majority and a disputed flag per step, the number of ratings, the admission text and ultrasound findings the reviewers saw, then every annotation column from the source spreadsheet in its original order. Frozen header row, wrapped text, and colour-coded ratings.
 - **דוח PDF**: a printable report. Click *הורדה כ-PDF* and choose *Save as PDF*. The browser renders Hebrew right-to-left correctly, which server-side PDF libraries don't do reliably.
 
 ## Development

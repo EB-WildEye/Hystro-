@@ -87,7 +87,7 @@ export function UploadForm() {
       </button>
 
       {result?.ok && (
-        <div role="status" className="rounded-xl bg-resident-soft p-4 text-ink">
+        <div role="status" className="rounded-xl bg-junior-soft p-4 text-ink">
           <p className="font-semibold">
             הקובץ &quot;{result.name}&quot; נוסף, והסוקרים כבר יכולים לדרג אותו.
           </p>

@@ -1,7 +1,9 @@
-import type { Rating } from "./labels";
+import { STAGE_OPTIONS, STAGES, type Rating, type Stage } from "./labels.ts";
 
 // Pure statistics over the rating matrix. No I/O, so it is unit-tested
-// directly (see tests/stats.test.ts).
+// directly (see tests/stats.test.ts). Every case has two stages (entry,
+// operative); each stage is summarised and analysed on its own, with the
+// answer options that stage offers as nominal categories.
 
 export type CaseRow = {
   id: number;
@@ -13,86 +15,109 @@ export type CaseRow = {
 
 export type Reviewer = { id: string; display_name: string; reviewer_slot: number };
 
-export type RatingRow = { case_id: number; reviewer_id: string; rating: Rating; updated_at: string };
+export type RatingRow = { case_id: number; reviewer_id: string; stage: Stage; rating: Rating; updated_at: string };
+
+export type Status = "unrated" | "partial" | "complete";
+
+export type StageSummary = {
+  bySlot: (Rating | null)[]; // index 0..2 = reviewer slot 1..3
+  count: number;
+  status: Status;
+  ambivalent: boolean; // >= 2 ratings that are not all identical
+  majority: Rating | null; // a rating given by >= 2 reviewers and by more than any other
+};
 
 export type CaseSummary = {
   case: CaseRow;
-  bySlot: (Rating | null)[]; // index 0..2 = reviewer slot 1..3
-  count: number;
-  status: "unrated" | "partial" | "complete";
-  ambivalent: boolean; // >= 2 ratings that are not all identical
-  majority: Rating | null; // only when >= 2 ratings agree and outnumber the rest
+  stages: Record<Stage, StageSummary>;
+  status: Status; // complete when every reviewer rated both stages
+  ambivalent: boolean; // disputed in at least one stage
 };
+
+function statusOf(given: number, of: number): Status {
+  return given === 0 ? "unrated" : given === of ? "complete" : "partial";
+}
+
+function summarizeStage(bySlot: (Rating | null)[], raters: number): StageSummary {
+  const given = bySlot.filter((v): v is Rating => v !== null);
+  const counts = new Map<Rating, number>();
+  for (const v of given) counts.set(v, (counts.get(v) ?? 0) + 1);
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const [top, second] = ranked;
+  const majority = top && top[1] >= 2 && (!second || top[1] > second[1]) ? top[0] : null;
+  return {
+    bySlot,
+    count: given.length,
+    status: statusOf(given.length, raters),
+    ambivalent: given.length >= 2 && counts.size > 1,
+    majority,
+  };
+}
 
 export function summarize(cases: CaseRow[], reviewers: Reviewer[], ratings: RatingRow[]): CaseSummary[] {
   const slotOf = new Map(reviewers.map((r) => [r.id, r.reviewer_slot]));
-  const grid = new Map<number, (Rating | null)[]>();
-  for (const c of cases) grid.set(c.id, [null, null, null]);
+  const raters = Math.max(reviewers.length, 1);
+  const grid = new Map<number, Record<Stage, (Rating | null)[]>>();
+  for (const c of cases) grid.set(c.id, { entry: [null, null, null], operative: [null, null, null] });
   for (const r of ratings) {
     const slot = slotOf.get(r.reviewer_id);
     const row = grid.get(r.case_id);
-    if (slot && row) row[slot - 1] = r.rating;
+    if (slot && row) row[r.stage][slot - 1] = r.rating;
   }
   return cases.map((c) => {
-    const bySlot = grid.get(c.id)!;
-    const given = bySlot.filter((v): v is Rating => v !== null);
-    const resident = given.filter((v) => v === "resident").length;
-    const specialist = given.length - resident;
-    let majority: Rating | null = null;
-    if (given.length >= 2 && resident !== specialist) {
-      const top = resident > specialist ? "resident" : "specialist";
-      if (Math.max(resident, specialist) >= 2) majority = top;
-    }
+    const row = grid.get(c.id)!;
+    const stages = {
+      entry: summarizeStage(row.entry, raters),
+      operative: summarizeStage(row.operative, raters),
+    };
+    const given = stages.entry.count + stages.operative.count;
     return {
       case: c,
-      bySlot,
-      count: given.length,
-      status: given.length === 0 ? "unrated" : given.length === 3 ? "complete" : "partial",
-      ambivalent: given.length >= 2 && resident > 0 && specialist > 0,
-      majority,
+      stages,
+      status: statusOf(given, raters * STAGES.length),
+      ambivalent: stages.entry.ambivalent || stages.operative.ambivalent,
     };
   });
 }
 
-// Fleiss' kappa for a fixed number of raters per subject (Fleiss, 1971).
-// Uses only subjects rated by all raters. Returns null when undefined.
-export function fleissKappa(matrix: Rating[][]): number | null {
-  const rows = matrix.filter((r) => r.length >= 2);
-  if (rows.length === 0) return null;
-  const n = rows[0].length;
-  if (rows.some((r) => r.length !== n)) throw new Error("Fleiss' kappa needs the same rater count per subject");
-  const N = rows.length;
+// Fleiss' kappa for a fixed number of raters per subject and any number of
+// nominal categories (Fleiss, 1971). Returns null when undefined.
+export function fleissKappa(matrix: Rating[][], categories: readonly Rating[]): number | null {
+  if (matrix.length === 0) return null;
+  const n = matrix[0].length;
+  if (n < 2) return null;
+  if (matrix.some((r) => r.length !== n)) throw new Error("Fleiss' kappa needs the same rater count per subject");
+  const N = matrix.length;
+  const totals = new Map<Rating, number>(categories.map((c) => [c, 0]));
   let pBarSum = 0;
-  let residentTotal = 0;
-  for (const r of rows) {
-    const a = r.filter((v) => v === "resident").length;
-    const b = n - a;
-    residentTotal += a;
-    pBarSum += (a * a + b * b - n) / (n * (n - 1));
+  for (const row of matrix) {
+    let sumSquares = 0;
+    for (const c of categories) {
+      const nij = row.filter((v) => v === c).length;
+      totals.set(c, totals.get(c)! + nij);
+      sumSquares += nij * nij;
+    }
+    pBarSum += (sumSquares - n) / (n * (n - 1));
   }
   const pBar = pBarSum / N;
-  const pRes = residentTotal / (N * n);
-  const pe = pRes * pRes + (1 - pRes) * (1 - pRes);
+  const pe = categories.reduce((sum, c) => sum + (totals.get(c)! / (N * n)) ** 2, 0);
   if (pe === 1) return null;
   return (pBar - pe) / (1 - pe);
 }
 
-// Cohen's kappa for two raters on the cases both rated (Cohen, 1960).
-export function cohenKappa(pairs: [Rating, Rating][]): { kappa: number | null; agreement: number | null; n: number } {
+// Cohen's kappa for two raters on the subjects both rated (Cohen, 1960).
+export function cohenKappa(
+  pairs: [Rating, Rating][],
+  categories: readonly Rating[],
+): { kappa: number | null; agreement: number | null; n: number } {
   const n = pairs.length;
   if (n === 0) return { kappa: null, agreement: null, n };
-  let agree = 0;
-  let aRes = 0;
-  let bRes = 0;
-  for (const [a, b] of pairs) {
-    if (a === b) agree++;
-    if (a === "resident") aRes++;
-    if (b === "resident") bRes++;
-  }
-  const po = agree / n;
-  const pa = aRes / n;
-  const pb = bRes / n;
-  const pe = pa * pb + (1 - pa) * (1 - pb);
+  const po = pairs.filter(([a, b]) => a === b).length / n;
+  const pe = categories.reduce((sum, c) => {
+    const pa = pairs.filter(([a]) => a === c).length / n;
+    const pb = pairs.filter(([, b]) => b === c).length / n;
+    return sum + pa * pb;
+  }, 0);
   return { kappa: pe === 1 ? null : (po - pe) / (1 - pe), agreement: po, n };
 }
 
@@ -107,58 +132,93 @@ export function kappaBand(k: number | null): string {
   return "כמעט מלאה";
 }
 
-export type Analytics = {
-  totalCases: number;
+export type StageAnalytics = {
+  stage: Stage;
+  options: readonly Rating[];
   complete: number;
   partial: number;
   unrated: number;
   ambivalent: number;
   unanimous: number;
-  perReviewer: { reviewer: Reviewer; rated: number; remaining: number; resident: number; specialist: number }[];
+  perReviewer: { reviewer: Reviewer; rated: number; remaining: number; counts: Record<Rating, number> }[];
   fleiss: number | null;
   fleissN: number;
   pairwise: { a: Reviewer; b: Reviewer; kappa: number | null; agreement: number | null; n: number }[];
-  majority: { resident: number; specialist: number };
+  majority: Record<Rating, number>;
 };
 
-export function analyze(summaries: CaseSummary[], reviewers: Reviewer[]): Analytics {
-  const sorted = [...reviewers].sort((x, y) => x.reviewer_slot - y.reviewer_slot);
-  const complete = summaries.filter((s) => s.status === "complete");
+export type Analytics = {
+  totalCases: number;
+  casesComplete: number; // every reviewer rated both stages
+  casesUnrated: number;
+  casesDisputed: number; // disputed in at least one stage
+  stages: Record<Stage, StageAnalytics>;
+};
+
+function zeroCounts(): Record<Rating, number> {
+  return { junior: 0, senior: 0, not_applicable: 0 };
+}
+
+function analyzeStage(stage: Stage, summaries: CaseSummary[], sorted: Reviewer[]): StageAnalytics {
+  const options = STAGE_OPTIONS[stage];
+  const rows = summaries.map((s) => s.stages[stage]);
+  const complete = rows.filter((r) => r.status === "complete");
+
   const perReviewer = sorted.map((reviewer) => {
-    const col = summaries.map((s) => s.bySlot[reviewer.reviewer_slot - 1]);
-    const resident = col.filter((v) => v === "resident").length;
-    const specialist = col.filter((v) => v === "specialist").length;
-    return { reviewer, rated: resident + specialist, remaining: summaries.length - resident - specialist, resident, specialist };
+    const counts = zeroCounts();
+    for (const r of rows) {
+      const v = r.bySlot[reviewer.reviewer_slot - 1];
+      if (v) counts[v]++;
+    }
+    const rated = counts.junior + counts.senior + counts.not_applicable;
+    return { reviewer, rated, remaining: rows.length - rated, counts };
   });
-  const pairwise: Analytics["pairwise"] = [];
+
+  const pairwise: StageAnalytics["pairwise"] = [];
   for (let i = 0; i < sorted.length; i++) {
     for (let j = i + 1; j < sorted.length; j++) {
       const a = sorted[i];
       const b = sorted[j];
       const pairs: [Rating, Rating][] = [];
-      for (const s of summaries) {
-        const va = s.bySlot[a.reviewer_slot - 1];
-        const vb = s.bySlot[b.reviewer_slot - 1];
+      for (const r of rows) {
+        const va = r.bySlot[a.reviewer_slot - 1];
+        const vb = r.bySlot[b.reviewer_slot - 1];
         if (va && vb) pairs.push([va, vb]);
       }
-      pairwise.push({ a, b, ...cohenKappa(pairs) });
+      pairwise.push({ a, b, ...cohenKappa(pairs, options) });
     }
   }
-  const fullMatrix = complete.map((s) => s.bySlot as Rating[]);
+
+  const majority = zeroCounts();
+  for (const r of rows) if (r.majority) majority[r.majority]++;
+
+  const fullMatrix = complete.map((r) => r.bySlot.slice(0, sorted.length) as Rating[]);
   return {
-    totalCases: summaries.length,
+    stage,
+    options,
     complete: complete.length,
-    partial: summaries.filter((s) => s.status === "partial").length,
-    unrated: summaries.filter((s) => s.status === "unrated").length,
-    ambivalent: summaries.filter((s) => s.ambivalent).length,
-    unanimous: complete.filter((s) => !s.ambivalent).length,
+    partial: rows.filter((r) => r.status === "partial").length,
+    unrated: rows.filter((r) => r.status === "unrated").length,
+    ambivalent: rows.filter((r) => r.ambivalent).length,
+    unanimous: complete.filter((r) => !r.ambivalent).length,
     perReviewer,
-    fleiss: sorted.length === 3 ? fleissKappa(fullMatrix) : null,
+    fleiss: sorted.length >= 3 ? fleissKappa(fullMatrix, options) : null,
     fleissN: fullMatrix.length,
     pairwise,
-    majority: {
-      resident: summaries.filter((s) => s.majority === "resident").length,
-      specialist: summaries.filter((s) => s.majority === "specialist").length,
+    majority,
+  };
+}
+
+export function analyze(summaries: CaseSummary[], reviewers: Reviewer[]): Analytics {
+  const sorted = [...reviewers].sort((x, y) => x.reviewer_slot - y.reviewer_slot);
+  return {
+    totalCases: summaries.length,
+    casesComplete: summaries.filter((s) => s.status === "complete").length,
+    casesUnrated: summaries.filter((s) => s.status === "unrated").length,
+    casesDisputed: summaries.filter((s) => s.ambivalent).length,
+    stages: {
+      entry: analyzeStage("entry", summaries, sorted),
+      operative: analyzeStage("operative", summaries, sorted),
     },
   };
 }

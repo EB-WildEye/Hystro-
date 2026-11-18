@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { STAGE_SHORT, type Stage } from "@/lib/labels";
 import { removeRating } from "./actions";
 
 // Two-step removal: the first click asks, the second one removes.
@@ -9,10 +10,12 @@ import { removeRating } from "./actions";
 export function RemoveRating({
   caseId,
   caseNumber,
+  stage,
   returnTo,
 }: {
   caseId: number;
   caseNumber: string;
+  stage: Stage;
   returnTo?: "case";
 }) {
   const [asking, setAsking] = useState(false);
@@ -23,6 +26,7 @@ export function RemoveRating({
     setFailed(false);
     const data = new FormData();
     data.set("caseId", String(caseId));
+    data.set("stage", stage);
     if (returnTo) data.set("returnTo", returnTo);
     startTransition(async () => {
       try {
@@ -40,7 +44,7 @@ export function RemoveRating({
       <button
         type="button"
         onClick={() => setAsking(true)}
-        aria-label={`הסרת הדירוג של מטופלת ${caseNumber}`}
+        aria-label={`הסרת הדירוג של מטופלת ${caseNumber}, ${STAGE_SHORT[stage]}`}
         className="rounded-full px-3 py-1.5 text-sm text-muted hover:bg-bg hover:text-ink"
       >
         הסרה
@@ -50,12 +54,12 @@ export function RemoveRating({
 
   return (
     <span className="flex flex-wrap items-center gap-2 text-sm">
-      {failed ? <span className="text-specialist">ההסרה נכשלה</span> : <span className="text-muted">להסיר את הדירוג?</span>}
+      {failed ? <span className="text-danger">ההסרה נכשלה</span> : <span className="text-muted">להסיר את הדירוג?</span>}
       <button
         type="button"
         disabled={pending}
         onClick={remove}
-        className="rounded-full bg-specialist px-3 py-1.5 font-semibold text-on-accent disabled:opacity-50"
+        className="rounded-full bg-danger px-3 py-1.5 font-semibold text-on-accent disabled:opacity-50"
       >
         הסרה
       </button>

@@ -4,7 +4,7 @@ import { Header } from "@/components/header";
 import { ProgressBar } from "@/components/progress-bar";
 import { requireReviewer, type Profile } from "@/lib/dal";
 import { listDatasets, parseId, type Dataset } from "@/lib/datasets";
-import { isRating } from "@/lib/labels";
+import { isRating, isStage, type Stage } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { REVIEW_NAV } from "./nav";
 import { datasetProgress } from "./progress";
@@ -35,7 +35,7 @@ async function DatasetPicker({ profile, datasets }: { profile: Profile; datasets
                 className="block rounded-2xl bg-surface p-5 shadow-card transition hover:ring-2 hover:ring-accent"
               >
                 <span className="mb-3 block text-lg font-semibold">{d.name}</span>
-                <ProgressBar done={progress[i].done} total={progress[i].total} label={`התקדמות בקובץ ${d.name}`} />
+                <ProgressBar done={progress[i].done} total={progress[i].total} label={`התקדמות בקובץ ${d.name}`} unit="דירוגים" />
               </Link>
             </li>
           ))}
@@ -50,11 +50,14 @@ async function ReviewContent({ searchParams }: { searchParams: PageProps<"/revie
   const supabase = await createClient();
   const params = await searchParams;
   const requestedCase = parseId(params.case);
+  const requestedStage: Stage = isStage(params.stage) ? params.stage : "entry";
   const returnTo = params.from === "mine" ? "mine" : undefined;
   const datasets = await listDatasets();
 
-  // Which case to show: the one asked for, or the next unrated one in a dataset.
+  // Which card to show: the one asked for, or the next unrated (case, stage)
+  // in a dataset. Each case is two cards: entry, then operative.
   let caseId = requestedCase;
+  let stage: Stage = requestedStage;
   let dataset: Dataset | undefined;
   if (caseId) {
     const { data } = await supabase.from("cases").select("dataset_id").eq("id", caseId).maybeSingle();
@@ -84,16 +87,20 @@ async function ReviewContent({ searchParams }: { searchParams: PageProps<"/revie
 
     const { data: state } = await supabase
       .from("reviewer_state")
-      .select("last_sort_order")
+      .select("last_sort_order, last_stage")
       .eq("reviewer_id", profile.id)
       .eq("dataset_id", dataset.id)
       .maybeSingle();
-    const { data: next, error } = await supabase.rpc("next_unrated_case", {
-      p_dataset_id: dataset.id,
-      after_order: state?.last_sort_order ?? 0,
-    });
+    const { data: next, error } = await supabase
+      .rpc("next_unrated_item", {
+        p_dataset_id: dataset.id,
+        after_order: state?.last_sort_order ?? 0,
+        after_stage: state?.last_stage ?? "operative",
+      })
+      .maybeSingle<{ case_id: number; stage: Stage }>();
     if (error) throw new Error(error.message);
-    caseId = (next as number | null) ?? null;
+    caseId = next?.case_id ?? null;
+    if (next) stage = next.stage;
   }
 
   const { total, done } = await datasetProgress(dataset.id, profile.id);
@@ -107,7 +114,7 @@ async function ReviewContent({ searchParams }: { searchParams: PageProps<"/revie
           </Link>
         )}
       </div>
-      <ProgressBar done={done} total={total} label={`התקדמות בקובץ ${dataset.name}`} />
+      <ProgressBar done={done} total={total} label={`התקדמות בקובץ ${dataset.name}`} unit="דירוגים" />
     </div>
   );
 
@@ -126,7 +133,13 @@ async function ReviewContent({ searchParams }: { searchParams: PageProps<"/revie
 
   const [{ data: c }, { data: own }] = await Promise.all([
     supabase.from("cases").select("id, case_number, admission_text, ultrasound_text").eq("id", caseId).maybeSingle(),
-    supabase.from("ratings").select("rating").eq("case_id", caseId).eq("reviewer_id", profile.id).maybeSingle(),
+    supabase
+      .from("ratings")
+      .select("rating")
+      .eq("case_id", caseId)
+      .eq("reviewer_id", profile.id)
+      .eq("stage", stage)
+      .maybeSingle(),
   ]);
   if (!c) throw new Error("Case not found");
   const current = isRating(own?.rating) ? own.rating : null;
@@ -137,9 +150,10 @@ async function ReviewContent({ searchParams }: { searchParams: PageProps<"/revie
       <main className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-4">
         {progress}
         <SwipeDeck
-          key={c.id}
+          key={`${c.id}-${stage}`}
           caseId={c.id}
           caseNumber={c.case_number}
+          stage={stage}
           admission={c.admission_text}
           ultrasound={c.ultrasound_text}
           current={current}

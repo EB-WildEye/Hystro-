@@ -27,19 +27,27 @@ insert into public.profiles values ('${A}','Admin','admin',null),('${R1}','Dr1',
 insert into public.cases (case_number, admission_text, sort_order) values ('101','t',1),('102','t',2),('103','t',3);
 insert into public.reviewer_state (reviewer_id, last_sort_order) values ('${R1}', 1);
 `);
-for (const file of migrations.filter((f) => f >= "0005")) await run(file);
+for (const file of migrations.filter((f) => f >= "0005" && f < "0006")) await run(file);
+// Old-scale test ratings, as the live database had them before 0006.
+await db.exec(`insert into public.ratings (case_id, reviewer_id, rating) values (1,'${R1}','resident'),(2,'${R2}','specialist');`);
+for (const file of migrations.filter((f) => f >= "0006")) await run(file);
 let pass=0, fail=0;
 const check=(name, ok)=>{ console.log((ok?"PASS ":"FAIL ")+name); if (ok) pass++; else fail++; };
 async function as(uid, fn){ await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${uid}',false);`); try { return await fn(); } finally { await db.exec(`reset role;`);} }
 async function err(fn){ try{ await fn(); return null;}catch(e){ return e.message; } }
 
-await as(R1, ()=>q(`insert into ratings (case_id, reviewer_id, rating) values (1,'${R1}','resident'),(2,'${R1}','specialist')`));
-await as(R2, ()=>q(`insert into ratings (case_id, reviewer_id, rating) values (1,'${R2}','specialist')`));
+// two-stage upgrade
+check("Old-scale ratings deleted", (await q(`select count(*)::int as n from ratings`)).rows[0].n === 0);
+check("Audit trail records their deletion", (await q(`select string_agg(coalesce(new_rating,'deleted'), ',' order by id) as t from rating_events`)).rows[0].t === "resident,specialist,deleted,deleted");
+check("Existing queue position points past its case", (await q(`select last_stage from reviewer_state where reviewer_id='${R1}'`)).rows[0].last_stage === "operative");
+
+await as(R1, ()=>q(`insert into ratings (case_id, reviewer_id, stage, rating) values (1,'${R1}','entry','junior'),(1,'${R1}','operative','not_applicable'),(2,'${R1}','entry','senior'),(2,'${R1}','operative','senior')`));
+await as(R2, ()=>q(`insert into ratings (case_id, reviewer_id, stage, rating) values (1,'${R2}','entry','senior')`));
 
 check("R2 sees only own ratings", (await as(R2, ()=>q(`select * from ratings`))).rows.length === 1);
 check("R2 cannot read R1 ratings by filter", (await as(R2, ()=>q(`select * from ratings where reviewer_id='${R1}'`))).rows.length === 0);
-check("R2 cannot insert rating as R1", !!(await as(R2, ()=>err(()=>q(`insert into ratings (case_id, reviewer_id, rating) values (3,'${R1}','resident')`)))));
-const upd = await as(R2, ()=>q(`update ratings set rating='resident' where reviewer_id='${R1}'`));
+check("R2 cannot insert rating as R1", !!(await as(R2, ()=>err(()=>q(`insert into ratings (case_id, reviewer_id, stage, rating) values (3,'${R1}','entry','junior')`)))));
+const upd = await as(R2, ()=>q(`update ratings set rating='junior' where reviewer_id='${R1}'`));
 check("R2 cannot update R1 rating", upd.affectedRows === 0);
 check("R2 cannot remove R1 rating", (await as(R2, ()=>q(`delete from ratings where reviewer_id='${R1}'`))).affectedRows === 0);
 check("R2 cannot read audit log", (await as(R2, ()=>q(`select * from rating_events`))).rows.length === 0);
@@ -47,27 +55,35 @@ check("R2 cannot read others' profiles", (await as(R2, ()=>q(`select * from prof
 check("R2 cannot promote self to admin", !!(await as(R2, ()=>err(()=>q(`update profiles set role='admin' where id='${R2}'`)))));
 check("R2 cannot write cases", !!(await as(R2, ()=>err(()=>q(`insert into cases (dataset_id, case_number, admission_text, sort_order) values (1, 'x','y',9)`)))));
 check("Reviewer can read cases", (await as(R2, ()=>q(`select * from cases`))).rows.length === 3);
-check("Invalid rating value rejected", !!(await as(R2, ()=>err(()=>q(`insert into ratings (case_id, reviewer_id, rating) values (2,'${R2}','maybe')`)))));
-check("Admin sees all ratings", (await as(A, ()=>q(`select * from ratings`))).rows.length === 3);
-check("Admin cannot rate", !!(await as(A, ()=>err(()=>q(`insert into ratings (case_id, reviewer_id, rating) values (3,'${A}','resident')`)))));
+check("Invalid rating value rejected", !!(await as(R2, ()=>err(()=>q(`insert into ratings (case_id, reviewer_id, stage, rating) values (2,'${R2}','entry','maybe')`)))));
+check("Old scale rejected", !!(await as(R2, ()=>err(()=>q(`insert into ratings (case_id, reviewer_id, stage, rating) values (2,'${R2}','entry','resident')`)))));
+check("Rating needs a stage", !!(await as(R2, ()=>err(()=>q(`insert into ratings (case_id, reviewer_id, rating) values (2,'${R2}','junior')`)))));
+check("Unknown stage rejected", !!(await as(R2, ()=>err(()=>q(`insert into ratings (case_id, reviewer_id, stage, rating) values (2,'${R2}','other','junior')`)))));
+check("'Not applicable' only for the operative stage", !!(await as(R2, ()=>err(()=>q(`insert into ratings (case_id, reviewer_id, stage, rating) values (2,'${R2}','entry','not_applicable')`)))));
+check("One rating per case, reviewer and stage", !!(await as(R2, ()=>err(()=>q(`insert into ratings (case_id, reviewer_id, stage, rating) values (1,'${R2}','entry','junior')`)))));
+check("Admin sees all ratings", (await as(A, ()=>q(`select * from ratings`))).rows.length === 5);
+check("Admin cannot rate", !!(await as(A, ()=>err(()=>q(`insert into ratings (case_id, reviewer_id, stage, rating) values (3,'${A}','entry','junior')`)))));
 check("Admin sees all profiles", (await as(A, ()=>q(`select * from profiles`))).rows.length === 4);
 // queue
-check("Queue R1 after 0 -> case 3", (await as(R1, ()=>q(`select next_unrated_case(1, 0) as id`))).rows[0].id == 3);
-check("Queue R2 after 2 -> case 3", (await as(R2, ()=>q(`select next_unrated_case(1, 2) as id`))).rows[0].id == 3);
-check("Queue R2 after 3 wraps -> case 2", (await as(R2, ()=>q(`select next_unrated_case(1, 3) as id`))).rows[0].id == 2);
+const next = async (uid, ds, order, stage) => { const r = (await as(uid, ()=>q(`select case_id, stage from next_unrated_item($1, $2, $3)`, [ds, order, stage]))).rows[0]; return r ? `${r.case_id}:${r.stage}` : "none"; };
+check("Queue R1 from the start -> case 3 entry", (await next(R1, 1, 0, "operative")) === "3:entry");
+check("Queue R2: after case 1 entry comes case 1 operative", (await next(R2, 1, 1, "entry")) === "1:operative");
+check("Queue R2: after case 1 operative comes case 2 entry", (await next(R2, 1, 1, "operative")) === "2:entry");
+check("Queue R2 wraps to the first unrated item", (await next(R2, 1, 3, "operative")) === "1:operative");
 // edit + audit
-await as(R1, ()=>q(`insert into ratings (case_id, reviewer_id, rating) values (1,'${R1}','specialist') on conflict (case_id, reviewer_id) do update set rating = excluded.rating`));
-check("Upsert changes own rating", (await as(R1, ()=>q(`select rating from ratings where case_id=1`))).rows[0].rating === "specialist");
-check("Audit logged the change", (await as(A, ()=>q(`select * from rating_events where case_id=1 and reviewer_id='${R1}' order by id`))).rows.map(r=>r.new_rating).join(",") === "resident,specialist");
+await as(R1, ()=>q(`insert into ratings (case_id, reviewer_id, stage, rating) values (1,'${R1}','entry','senior') on conflict (case_id, reviewer_id, stage) do update set rating = excluded.rating`));
+check("Upsert changes own rating for that stage only", (await as(R1, ()=>q(`select stage, rating from ratings where case_id=1 order by stage`))).rows.map(r=>r.stage+"="+r.rating).join() === "entry=senior,operative=not_applicable");
+check("Audit logged the change with its stage", (await as(A, ()=>q(`select stage, new_rating from rating_events where case_id=1 and reviewer_id='${R1}' and stage='entry' order by id`))).rows.map(r=>r.new_rating).join(",") === "junior,senior");
 // removing a rating
 check("Admin cannot remove ratings", (await as(A, ()=>q(`delete from ratings`))).affectedRows === 0);
 check("R2 removes only own rating", (await as(R2, ()=>q(`delete from ratings`))).affectedRows === 1);
-check("Other ratings survive", (await as(A, ()=>q(`select * from ratings`))).rows.length === 2);
-check("Removed case returns to R2 queue", (await as(R2, ()=>q(`select next_unrated_case(1, 0) as id`))).rows[0].id == 1);
-const removal = (await as(A, ()=>q(`select old_rating, new_rating from rating_events where reviewer_id='${R2}' order by id desc limit 1`))).rows[0];
-check("Audit logged the removal", removal.old_rating === "specialist" && removal.new_rating === null);
+check("Other ratings survive", (await as(A, ()=>q(`select * from ratings`))).rows.length === 4);
+check("Removed item returns to R2 queue", (await next(R2, 1, 0, "operative")) === "1:entry");
+const removal = (await as(A, ()=>q(`select stage, old_rating, new_rating from rating_events where reviewer_id='${R2}' order by id desc limit 1`))).rows[0];
+check("Audit logged the removal", removal.stage === "entry" && removal.old_rating === "senior" && removal.new_rating === null);
 // reviewer_state
-await as(R1, ()=>q(`insert into reviewer_state (reviewer_id, dataset_id, last_sort_order) values ('${R1}', 1, 2) on conflict (reviewer_id, dataset_id) do update set last_sort_order = excluded.last_sort_order`));
+await as(R1, ()=>q(`insert into reviewer_state (reviewer_id, dataset_id, last_sort_order, last_stage) values ('${R1}', 1, 2, 'entry') on conflict (reviewer_id, dataset_id) do update set last_sort_order = excluded.last_sort_order, last_stage = excluded.last_stage`));
+check("Reviewer saves own position with its stage", (await as(R1, ()=>q(`select last_stage from reviewer_state`))).rows[0].last_stage === "entry");
 check("R2 cannot see R1 position", (await as(R2, ()=>q(`select * from reviewer_state`))).rows.length === 0);
 // case_attributes: annotation columns, admin-only
 await db.exec(`insert into case_attributes values (1, '[{"name":"age_years","value":"בת 42"}]')`);
@@ -99,8 +115,8 @@ check("Duplicate dataset name rejected", !!(await as(A, ()=>err(()=>q(`select im
 check("Duplicate serial in one file rejected, nothing written", !!(await as(A, ()=>err(()=>q(`select import_dataset('File 3', $1::jsonb)`, [JSON.stringify([{case_number:"9",admission_text:"a"},{case_number:"9",admission_text:"b"}])])))) && (await q(`select count(*)::int as n from datasets where name='File 3'`)).rows[0].n === 0);
 check("Empty upload rejected", !!(await as(A, ()=>err(()=>q(`select import_dataset('File 4', '[]'::jsonb)`)))));
 const firstOf2 = (await q(`select id from cases where dataset_id=$1 order by sort_order limit 1`, [ds2])).rows[0].id;
-check("Queue is per dataset", (await as(R2, ()=>q(`select next_unrated_case($1, 0) as id`, [ds2]))).rows[0].id == firstOf2);
-await as(R2, ()=>q(`insert into ratings (case_id, reviewer_id, rating) values ($1,'${R2}','resident')`, [firstOf2]));
+check("Queue is per dataset", (await next(R2, ds2, 0, "operative")) === `${firstOf2}:entry`);
+await as(R2, ()=>q(`insert into ratings (case_id, reviewer_id, stage, rating) values ($1,'${R2}','entry','junior')`, [firstOf2]));
 check("Reviewer sees every dataset", (await as(R2, ()=>q(`select * from datasets`))).rows.length === 3);
 // rename
 check("Reviewer cannot rename a dataset", (await as(R2, ()=>q(`update datasets set name='x' where id=$1`, [ds2]))).affectedRows === 0);
@@ -119,7 +135,7 @@ check("Its cases, ratings, attributes and queue positions are gone",
   (await q(`select count(*)::int as n from case_attributes where case_id=$1`, [firstOf2])).rows[0].n === 0 &&
   (await q(`select count(*)::int as n from reviewer_state where dataset_id=$1`, [ds2])).rows[0].n === 0);
 check("Reviewer no longer sees the deleted dataset", !(await as(R2, ()=>q(`select * from datasets`))).rows.some(r=>r.id == ds2));
-check("Audit trail keeps the rating and records its deletion", (await q(`select new_rating from rating_events where case_id=$1 order by id`, [firstOf2])).rows.map(r=>r.new_rating ?? "deleted").join() === "resident,deleted");
+check("Audit trail keeps the rating and records its deletion", (await q(`select new_rating from rating_events where case_id=$1 order by id`, [firstOf2])).rows.map(r=>r.new_rating ?? "deleted").join() === "junior,deleted");
 check("Other datasets untouched", (await q(`select count(*)::int as n from cases where dataset_id=1`)).rows[0].n === 4);
 // anon
 await db.exec(`set role anon;`);

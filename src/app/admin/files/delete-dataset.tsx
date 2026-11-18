@@ -19,7 +19,7 @@ export function DeleteDataset({ datasetId, name, cases }: { datasetId: number; n
         type="button"
         onClick={() => setAsking(true)}
         aria-label={`מחיקת הקובץ ${name}`}
-        className="rounded-full px-3 py-1.5 text-sm text-muted hover:bg-bg hover:text-specialist"
+        className="rounded-full px-3 py-1.5 text-sm text-muted hover:bg-bg hover:text-danger"
       >
         מחיקה
       </button>
@@ -47,12 +47,12 @@ export function DeleteDataset({ datasetId, name, cases }: { datasetId: number; n
           onChange={(e) => setTyped(e.target.value)}
           autoFocus
           aria-label="שם הקובץ לאישור המחיקה"
-          className="rounded-lg border border-line bg-surface px-3 py-1.5 outline-none focus:border-specialist"
+          className="rounded-lg border border-line bg-surface px-3 py-1.5 outline-none focus:border-danger"
         />
         <button
           type="submit"
           disabled={pending || typed.trim() !== name}
-          className="rounded-full bg-specialist px-3 py-1.5 font-semibold text-on-accent disabled:opacity-40"
+          className="rounded-full bg-danger px-3 py-1.5 font-semibold text-on-accent disabled:opacity-40"
         >
           מחיקה לצמיתות
         </button>
@@ -70,7 +70,7 @@ export function DeleteDataset({ datasetId, name, cases }: { datasetId: number; n
         </button>
       </div>
       {error && (
-        <p role="alert" className="mt-2 font-semibold text-specialist">
+        <p role="alert" className="mt-2 font-semibold text-danger">
           {error}
         </p>
       )}

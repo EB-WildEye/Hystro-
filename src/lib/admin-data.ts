@@ -37,7 +37,7 @@ export async function loadAdminData(datasetId: number) {
     fetchAll<RatingRow>((from, to) =>
       supabase
         .from("ratings")
-        .select("case_id, reviewer_id, rating, updated_at, cases!inner(dataset_id)")
+        .select("case_id, reviewer_id, stage, rating, updated_at, cases!inner(dataset_id)")
         .eq("cases.dataset_id", datasetId)
         .order("id")
         .range(from, to),

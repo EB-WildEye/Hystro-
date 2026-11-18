@@ -4,6 +4,7 @@ import { Header } from "@/components/header";
 import { RatingBadge } from "@/components/rating-badge";
 import { DatasetTabs, NoDatasets } from "@/components/dataset-tabs";
 import { adminContext, loadAdminData } from "@/lib/admin-data";
+import { STAGE_SHORT, STAGES } from "@/lib/labels";
 import type { CaseSummary } from "@/lib/stats";
 import { ADMIN_NAV } from "../nav";
 
@@ -63,25 +64,45 @@ async function CasesTable({ searchParams }: { searchParams: PageProps<"/admin/ca
           <table className="w-full text-sm">
             <thead className="bg-bg text-muted">
               <tr>
-                <th className="px-3 py-2 text-start font-medium">מטופלת</th>
+                <th rowSpan={2} className="px-3 py-2 text-start align-bottom font-medium">מטופלת</th>
                 {reviewers.map((r) => (
-                  <th key={r.id} className="px-3 py-2 text-start font-medium">{r.display_name}</th>
+                  <th key={r.id} colSpan={2} className="border-s border-line px-3 pt-2 text-start font-medium">
+                    {r.display_name}
+                  </th>
                 ))}
-                <th className="px-3 py-2 text-start font-medium">הכרעת רוב</th>
-                <th className="px-3 py-2 text-start font-medium">קבלה</th>
+                <th colSpan={2} className="border-s border-line px-3 pt-2 text-start font-medium">הכרעת רוב</th>
+                <th rowSpan={2} className="border-s border-line px-3 py-2 text-start align-bottom font-medium">קבלה</th>
+              </tr>
+              <tr className="text-xs">
+                {[...reviewers.map((r) => r.id), "majority"].flatMap((key) =>
+                  STAGES.map((stage) => (
+                    <th key={`${key}-${stage}`} className={`px-3 pb-2 text-start font-normal ${stage === "entry" ? "border-s border-line" : ""}`}>
+                      {STAGE_SHORT[stage]}
+                    </th>
+                  )),
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {rows.map((s) => (
                 <tr key={s.case.id} className={s.ambivalent ? "bg-warn-soft/60" : undefined}>
                   <td className="px-3 py-2 align-top font-semibold" dir="ltr">{s.case.case_number}</td>
-                  {reviewers.map((r) => (
-                    <td key={r.id} className="px-3 py-2 align-top">
-                      <RatingBadge value={s.bySlot[r.reviewer_slot - 1]} />
+                  {reviewers.flatMap((r) =>
+                    STAGES.map((stage) => (
+                      <td key={`${r.id}-${stage}`} className={`px-3 py-2 align-top ${stage === "entry" ? "border-s border-line" : ""}`}>
+                        <RatingBadge value={s.stages[stage].bySlot[r.reviewer_slot - 1]} />
+                      </td>
+                    )),
+                  )}
+                  {STAGES.map((stage) => (
+                    <td
+                      key={`m-${stage}`}
+                      className={`px-3 py-2 align-top ${stage === "entry" ? "border-s border-line" : ""} ${s.stages[stage].ambivalent ? "font-semibold" : ""}`}
+                    >
+                      <RatingBadge value={s.stages[stage].majority} />
                     </td>
                   ))}
-                  <td className="px-3 py-2 align-top"><RatingBadge value={s.majority} /></td>
-                  <td className="px-3 py-2 align-top">
+                  <td className="border-s border-line px-3 py-2 align-top">
                     <details>
                       <summary className="cursor-pointer text-accent">הצגה</summary>
                       <div className="mt-2 max-w-xl">

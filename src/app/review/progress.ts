@@ -1,7 +1,9 @@
 import "server-only";
+import { STAGES } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 
-// Cases in a dataset and how many of them this reviewer has rated.
+// Ratings due in a dataset (two per case: entry and operative) and how
+// many of them this reviewer has given.
 export async function datasetProgress(datasetId: number, reviewerId: string) {
   const supabase = await createClient();
   const [{ count: total, error: e1 }, { count: done, error: e2 }] = await Promise.all([
@@ -13,5 +15,5 @@ export async function datasetProgress(datasetId: number, reviewerId: string) {
       .eq("cases.dataset_id", datasetId),
   ]);
   if (e1 || e2) throw new Error((e1 ?? e2)!.message);
-  return { total: total ?? 0, done: done ?? 0 };
+  return { total: (total ?? 0) * STAGES.length, done: done ?? 0 };
 }

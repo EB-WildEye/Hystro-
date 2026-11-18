@@ -4,6 +4,7 @@ import { AnalyticsView } from "@/components/analytics-view";
 import { RatingBadge } from "@/components/rating-badge";
 import { DatasetTabs, NoDatasets } from "@/components/dataset-tabs";
 import { adminContext, loadAdminData } from "@/lib/admin-data";
+import { STAGE_SHORT, STAGES } from "@/lib/labels";
 import { ADMIN_NAV } from "../nav";
 import { PrintButton } from "./print-button";
 
@@ -52,20 +53,26 @@ async function Report({ searchParams }: { searchParams: PageProps<"/admin/report
               <thead className="bg-bg text-muted">
                 <tr>
                   <th className="px-3 py-2 text-start font-medium">מטופלת</th>
+                  <th className="px-3 py-2 text-start font-medium">שלב</th>
                   {reviewers.map((r) => (
                     <th key={r.id} className="px-3 py-2 text-start font-medium">{r.display_name}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {ambivalent.map((s) => (
-                  <tr key={s.case.id} className="avoid-break">
-                    <td className="px-3 py-1.5" dir="ltr">{s.case.case_number}</td>
-                    {reviewers.map((r) => (
-                      <td key={r.id} className="px-3 py-1.5"><RatingBadge value={s.bySlot[r.reviewer_slot - 1]} /></td>
-                    ))}
-                  </tr>
-                ))}
+                {ambivalent.flatMap((s) =>
+                  STAGES.filter((stage) => s.stages[stage].ambivalent).map((stage) => (
+                    <tr key={`${s.case.id}-${stage}`} className="avoid-break">
+                      <td className="px-3 py-1.5" dir="ltr">{s.case.case_number}</td>
+                      <td className="px-3 py-1.5">{STAGE_SHORT[stage]}</td>
+                      {reviewers.map((r) => (
+                        <td key={r.id} className="px-3 py-1.5">
+                          <RatingBadge value={s.stages[stage].bySlot[r.reviewer_slot - 1]} />
+                        </td>
+                      ))}
+                    </tr>
+                  )),
+                )}
               </tbody>
             </table>
           )}
