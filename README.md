@@ -64,6 +64,8 @@ pip install -r scripts/requirements.txt
 python scripts/create_users.py
 ```
 
+It reads the accounts from `scripts/.env`: `ADMIN_EMAIL` is the first admin, `ADMIN_2` .. `ADMIN_5` add more admins, and `REVIEWER_1` .. `REVIEWER_3` are the reviewer slots. Fill in a slot and run it again to add someone; existing accounts are kept.
+
 Cases are uploaded by the admin in the app, on the **קבצים** page (see below).
 
 ### 4. Run and deploy

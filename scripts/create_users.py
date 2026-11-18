@@ -35,17 +35,31 @@ def ensure_user(client, email: str) -> str:
     return res.user.id
 
 
+EXTRA_ADMINS = range(2, 6)  # ADMIN_2_* .. ADMIN_5_*
+REVIEWER_SLOTS = (1, 2, 3)  # must match profiles.reviewer_slot in the database
+
+
+def optional_person(prefix: str, label: str) -> tuple[str, str] | None:
+    email = os.environ.get(f"{prefix}_EMAIL", "").strip()
+    name = os.environ.get(f"{prefix}_NAME", "").strip()
+    if not email and not name:
+        return None  # not assigned yet; re-run once it is
+    if not email or not name:
+        raise SystemExit(f"{label} needs both {prefix}_EMAIL and {prefix}_NAME.")
+    return email, name
+
+
 def main() -> None:
     client = admin_client()
     people = [("admin", None, env("ADMIN_EMAIL"), env("ADMIN_NAME"))]
-    for slot in (1, 2, 3):
-        email = os.environ.get(f"REVIEWER_{slot}_EMAIL", "").strip()
-        name = os.environ.get(f"REVIEWER_{slot}_NAME", "").strip()
-        if not email and not name:
-            continue  # slot not assigned yet; re-run once it is
-        if not email or not name:
-            raise SystemExit(f"Reviewer {slot} needs both REVIEWER_{slot}_EMAIL and REVIEWER_{slot}_NAME.")
-        people.append(("reviewer", slot, email, name))
+    for n in EXTRA_ADMINS:
+        person = optional_person(f"ADMIN_{n}", f"Admin {n}")
+        if person:
+            people.append(("admin", None, *person))
+    for slot in REVIEWER_SLOTS:
+        person = optional_person(f"REVIEWER_{slot}", f"Reviewer {slot}")
+        if person:
+            people.append(("reviewer", slot, *person))
 
     emails = [p[2].lower() for p in people]
     if len(set(emails)) != len(emails):
@@ -56,7 +70,7 @@ def main() -> None:
         client.table("profiles").upsert(
             {"id": user_id, "display_name": name, "role": role, "reviewer_slot": slot}
         ).execute()
-        label = "admin" if role == "admin" else f"reviewer {slot}"
+        label = role if role == "admin" else f"reviewer {slot}"
         print(f"OK  {label}: {name}")
 
     print("Done. Users sign in at /login with their email address.")
