@@ -137,6 +137,23 @@ check("Its cases, ratings, attributes and queue positions are gone",
 check("Reviewer no longer sees the deleted dataset", !(await as(R2, ()=>q(`select * from datasets`))).rows.some(r=>r.id == ds2));
 check("Audit trail keeps the rating and records its deletion", (await q(`select new_rating from rating_events where case_id=$1 order by id`, [firstOf2])).rows.map(r=>r.new_rating ?? "deleted").join() === "junior,deleted");
 check("Other datasets untouched", (await q(`select count(*)::int as n from cases where dataset_id=1`)).rows[0].n === 4);
+// testers: rate like reviewers, without a reviewer slot
+const T="00000000-0000-0000-0000-0000000000f1";
+await db.exec(`insert into auth.users values ('${T}','t1');`);
+check("Tester profile needs no slot", !(await err(()=>q(`insert into profiles values ('${T}','Tester','tester',null)`))));
+check("Tester cannot hold a reviewer slot", !!(await err(()=>q(`update profiles set reviewer_slot=3 where id='${T}'`))));
+check("Reviewer must hold a slot", !!(await err(()=>q(`update profiles set reviewer_slot=null where id='${R3}'`))));
+check("Unknown role rejected", !!(await err(()=>q(`update profiles set role='guest' where id='${T}'`))));
+check("Tester reads cases and datasets", (await as(T, ()=>q(`select * from cases`))).rows.length > 0 && (await as(T, ()=>q(`select * from datasets`))).rows.length > 0);
+check("Tester rates", !(await as(T, ()=>err(()=>q(`insert into ratings (case_id, reviewer_id, stage, rating) values (1,'${T}','entry','junior')`)))));
+check("Tester edits own rating", (await as(T, ()=>q(`update ratings set rating='senior' where reviewer_id='${T}'`))).affectedRows === 1);
+check("Tester saves queue position", !(await as(T, ()=>err(()=>q(`insert into reviewer_state (reviewer_id, dataset_id, last_sort_order) values ('${T}', 1, 1)`)))));
+check("Tester queue skips own rated items", (await next(T, 1, 0, "operative")) === "1:operative");
+check("Tester sees only own ratings", (await as(T, ()=>q(`select * from ratings`))).rows.every(r=>r.reviewer_id===T));
+check("Tester cannot change own role", !!(await as(T, ()=>err(()=>q(`update profiles set role='reviewer', reviewer_slot=3 where id='${T}'`)))));
+check("Admin sees tester ratings", (await as(A, ()=>q(`select r.* from ratings r join profiles p on p.id=r.reviewer_id where p.role='tester'`))).rows.length === 1);
+check("Tester removes own rating", (await as(T, ()=>q(`delete from ratings where reviewer_id='${T}'`))).affectedRows === 1);
+check("Old role helper is gone", (await q(`select count(*)::int as n from pg_proc where proname='is_reviewer'`)).rows[0].n === 0);
 // anon
 await db.exec(`set role anon;`);
 check("Anon cannot read cases", !!(await err(()=>q(`select * from cases`))));

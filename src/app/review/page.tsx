@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Header } from "@/components/header";
 import { ProgressBar } from "@/components/progress-bar";
-import { requireReviewer, type Profile } from "@/lib/dal";
+import { requireRater, type Profile } from "@/lib/dal";
 import { listDatasets, parseId, type Dataset } from "@/lib/datasets";
 import { isRating, isStage, type Stage } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
@@ -13,7 +13,7 @@ import { SwipeDeck } from "./swipe-deck";
 function Message({ profile, children }: { profile: Profile; children: React.ReactNode }) {
   return (
     <>
-      <Header title="דירוג היסטרוסקופיה" nav={REVIEW_NAV} userName={profile.display_name} />
+      <Header title="דירוג היסטרוסקופיה" nav={REVIEW_NAV} userName={profile.display_name} tester={profile.role === "tester"} />
       <main className="mx-auto w-full max-w-xl px-4 py-16 text-center">{children}</main>
     </>
   );
@@ -24,7 +24,7 @@ async function DatasetPicker({ profile, datasets }: { profile: Profile; datasets
   const progress = await Promise.all(datasets.map((d) => datasetProgress(d.id, profile.id)));
   return (
     <>
-      <Header title="דירוג היסטרוסקופיה" nav={REVIEW_NAV} userName={profile.display_name} />
+      <Header title="דירוג היסטרוסקופיה" nav={REVIEW_NAV} userName={profile.display_name} tester={profile.role === "tester"} />
       <main className="mx-auto w-full max-w-xl px-4 py-10">
         <h1 className="text-2xl font-bold">על איזה קובץ לעבוד?</h1>
         <ul className="mt-6 flex flex-col gap-3">
@@ -46,7 +46,7 @@ async function DatasetPicker({ profile, datasets }: { profile: Profile; datasets
 }
 
 async function ReviewContent({ searchParams }: { searchParams: PageProps<"/review">["searchParams"] }) {
-  const profile = await requireReviewer();
+  const profile = await requireRater();
   const supabase = await createClient();
   const params = await searchParams;
   const requestedCase = parseId(params.case);
@@ -146,7 +146,7 @@ async function ReviewContent({ searchParams }: { searchParams: PageProps<"/revie
 
   return (
     <div className="flex h-dvh min-h-[34rem] flex-col">
-      <Header title="דירוג היסטרוסקופיה" nav={REVIEW_NAV} userName={profile.display_name} />
+      <Header title="דירוג היסטרוסקופיה" nav={REVIEW_NAV} userName={profile.display_name} tester={profile.role === "tester"} />
       <main className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-4">
         {progress}
         <SwipeDeck

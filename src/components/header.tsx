@@ -3,7 +3,17 @@ import { ThemeToggle } from "./theme-toggle";
 
 type NavItem = { href: string; label: string };
 
-export function Header({ title, nav, userName }: { title: string; nav: NavItem[]; userName?: string }) {
+export function Header({
+  title,
+  nav,
+  userName,
+  tester = false,
+}: {
+  title: string;
+  nav: NavItem[];
+  userName?: string;
+  tester?: boolean;
+}) {
   return (
     <header className="no-print border-b border-line bg-surface">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:gap-x-6">
@@ -25,6 +35,11 @@ export function Header({ title, nav, userName }: { title: string; nav: NavItem[]
           </form>
         </div>
       </div>
+      {tester && (
+        <p className="border-t border-line bg-warn-soft px-4 py-1.5 text-center text-sm text-warn">
+          חשבון בדיקה: הדירוגים שלך נשמרים בנפרד ולא נכללים בתוצאות המחקר.
+        </p>
+      )}
     </header>
   );
 }

@@ -37,6 +37,7 @@ def ensure_user(client, email: str) -> str:
 
 EXTRA_ADMINS = range(2, 6)  # ADMIN_2_* .. ADMIN_5_*
 REVIEWER_SLOTS = (1, 2, 3)  # must match profiles.reviewer_slot in the database
+TESTERS = range(1, 6)  # TESTER_1_* .. TESTER_5_*
 
 
 def optional_person(prefix: str, label: str) -> tuple[str, str] | None:
@@ -56,6 +57,12 @@ def main() -> None:
         person = optional_person(f"ADMIN_{n}", f"Admin {n}")
         if person:
             people.append(("admin", None, *person))
+    # Testers before reviewers: a reviewer who becomes a tester frees their
+    # slot before someone else takes it.
+    for n in TESTERS:
+        person = optional_person(f"TESTER_{n}", f"Tester {n}")
+        if person:
+            people.append(("tester", None, *person))
     for slot in REVIEWER_SLOTS:
         person = optional_person(f"REVIEWER_{slot}", f"Reviewer {slot}")
         if person:
@@ -70,7 +77,7 @@ def main() -> None:
         client.table("profiles").upsert(
             {"id": user_id, "display_name": name, "role": role, "reviewer_slot": slot}
         ).execute()
-        label = role if role == "admin" else f"reviewer {slot}"
+        label = f"reviewer {slot}" if role == "reviewer" else role
         print(f"OK  {label}: {name}")
 
     print("Done. Users sign in at /login with their email address.")

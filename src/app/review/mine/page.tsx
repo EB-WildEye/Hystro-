@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Header } from "@/components/header";
 import { RatingBadge } from "@/components/rating-badge";
-import { requireReviewer } from "@/lib/dal";
+import { requireRater } from "@/lib/dal";
 import { listDatasets } from "@/lib/datasets";
 import { isRating, isStage, STAGE_SHORT, STAGES, type Rating, type Stage } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
@@ -32,7 +32,7 @@ function StageCell({ row, stage }: { row: Row; stage: Stage }) {
 }
 
 async function MyRatings() {
-  const profile = await requireReviewer();
+  const profile = await requireRater();
   const supabase = await createClient();
   const datasets = await listDatasets();
   // RLS returns only this reviewer's own ratings.
@@ -61,7 +61,7 @@ async function MyRatings() {
 
   return (
     <>
-      <Header title="דירוג היסטרוסקופיה" nav={REVIEW_NAV} userName={profile.display_name} />
+      <Header title="דירוג היסטרוסקופיה" nav={REVIEW_NAV} userName={profile.display_name} tester={profile.role === "tester"} />
       <main className="mx-auto w-full max-w-3xl px-4 py-6">
         <h1 className="text-xl font-bold">הדירוגים שלי ({total})</h1>
         <p className="mt-1 text-sm text-muted">

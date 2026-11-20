@@ -38,11 +38,7 @@ The `.example` files show the variable names. The admission texts must be **de-i
 2. **SQL Editor** → paste and run each file in `supabase/migrations/`, in order.
 3. **Authentication → Sign In / Providers**: turn off *Allow new users to sign up*. Keep Email enabled.
 4. **Authentication → URL Configuration**: set *Site URL* to your Render URL, and add `http://localhost:3000/**` and `https://<your-app>.onrender.com/**` to *Redirect URLs*.
-5. **Authentication → Emails → Magic Link** template: replace the link with
-   ```html
-   <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">כניסה למערכת</a>
-   ```
-   This lets the link work even if a doctor opens it on a different device than the one they requested it from.
+5. **Authentication → Emails → Magic Link** template: use the subject and body in `supabase/templates/magic-link.html`. Its link goes through `/auth/confirm?token_hash=...`, which works even if a doctor opens it on a different device than the one they requested it from. The Hebrew text says who sends the email and why, which keeps it out of spam more often than a bare link.
 6. **Authentication → Emails → SMTP Settings**: set up a custom SMTP provider (for example Resend or SendGrid). Supabase's built-in mailer only sends to the project's own team members and is heavily rate-limited, so reviewers won't get their links without this.
 7. **Project Settings → API Keys**: copy the *publishable* key and the *secret* key.
 
@@ -64,7 +60,7 @@ pip install -r scripts/requirements.txt
 python scripts/create_users.py
 ```
 
-It reads the accounts from `scripts/.env`: `ADMIN_EMAIL` is the first admin, `ADMIN_2` .. `ADMIN_5` add more admins, and `REVIEWER_1` .. `REVIEWER_3` are the reviewer slots. Fill in a slot and run it again to add someone; existing accounts are kept.
+It reads the accounts from `scripts/.env`: `ADMIN_EMAIL` is the first admin, `ADMIN_2` .. `ADMIN_5` add more admins, `REVIEWER_1` .. `REVIEWER_3` are the study's reviewers, and `TESTER_1` .. `TESTER_5` are test accounts. Testers rate exactly like reviewers, but their ratings stay out of the dashboard, cases table, report and Excel export; the admin sees them on the **בדיקות** page. Fill in a slot and run it again to add someone; existing accounts are kept.
 
 Cases are uploaded by the admin in the app, on the **קבצים** page (see below).
 

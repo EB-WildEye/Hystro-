@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireReviewer } from "@/lib/dal";
+import { requireRater } from "@/lib/dal";
 import { isAllowed, isRating, isStage, type Stage } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 
@@ -39,7 +39,7 @@ function back(formData: FormData, datasetId: number): never {
 }
 
 export async function rateCase(formData: FormData) {
-  const profile = await requireReviewer();
+  const profile = await requireRater();
   const caseId = parseCaseId(formData);
   const stage = parseStage(formData);
   const rating = formData.get("rating");
@@ -56,7 +56,7 @@ export async function rateCase(formData: FormData) {
 
 // "Next": move on in the dataset without rating this card.
 export async function skipCase(formData: FormData) {
-  const profile = await requireReviewer();
+  const profile = await requireRater();
   const datasetId = await rememberPosition(parseCaseId(formData), parseStage(formData), profile.id);
   redirect(`/review?dataset=${datasetId}`);
 }
@@ -65,7 +65,7 @@ export async function skipCase(formData: FormData) {
 // queue. RLS only lets a reviewer delete their own rows, and the removal is
 // logged in rating_events by a database trigger.
 export async function removeRating(formData: FormData) {
-  const profile = await requireReviewer();
+  const profile = await requireRater();
   const caseId = parseCaseId(formData);
   const stage = parseStage(formData);
 
